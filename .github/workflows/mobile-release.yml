@@ -1,0 +1,70 @@
+name: Mobile Release
+
+# Builds the GPS4B mobile app for iOS and Android via EAS Build, then
+# publishes both as downloadable files on a GitHub Release.
+#
+# Trigger: push a tag like "mobile-v1.0.0", or run manually from the
+# Actions tab ("Run workflow").
+#
+# One-time setup required before this will work — see mobile/README.md
+# ("Releasing a build" section) for the full walkthrough:
+#   1. An Expo account, with EXPO_TOKEN saved as a GitHub Actions secret.
+#   2. An Apple Developer account linked in EAS, with at least one iPhone
+#      registered for ad-hoc distribution (`eas device:create`).
+
+on:
+  push:
+    tags:
+      - "mobile-v*"
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build Android APK + iOS IPA (EAS cloud build, waits for completion)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build --platform all --profile release --non-interactive --json > builds.json
+          cat builds.json
+
+      - name: Download build artifacts
+        run: |
+          mkdir -p artifacts
+          jq -c '.[]' builds.json | while read -r build; do
+            status=$(echo "$build" | jq -r '.status')
+            platform=$(echo "$build" | jq -r '.platform')
+            url=$(echo "$build" | jq -r '.artifacts.buildUrl // empty')
+            echo "Build ($platform): $status"
+            if [ "$status" != "finished" ] || [ -z "$url" ]; then
+              echo "::error::$platform build did not finish successfully (status: $status)"
+              exit 1
+            fi
+            ext="apk"
+            [ "$platform" = "ios" ] && ext="ipa"
+            curl -fL "$url" -o "artifacts/gps4b-${platform}.${ext}"
+          done
+          ls -la artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mobile/artifacts/*
+          name: ${{ github.ref_name }}
+          generate_release_notes: true

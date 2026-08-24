@@ -16,6 +16,16 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "release": {
+      "distribution": "internal",
+      "channel": "release",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "enterpriseProvisioning": "adhoc"
+      }
     }
   },
   "submit": {

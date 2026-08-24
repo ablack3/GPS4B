@@ -284,6 +284,11 @@ When starting the first ride, grant location access **"Allow all the time"**
 (Android) / **"Always"** (iOS) so recording continues while the phone is
 locked.
 
+**Just want to install the app, not build it?** Grab the latest build from
+the [Releases page](https://github.com/ablack3/GPS4B/releases/latest) —
+see [mobile/README.md](mobile/README.md) for step-by-step install
+instructions for Android and iPhone, and how releases are built.
+
 ### Verifying the v0.1 acceptance flow
 
 1. Start the backend and install the app on a phone.
