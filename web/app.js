@@ -180,6 +180,139 @@ function geoErrorMessage(err) {
   return 'Location request timed out.';
 }
 
+// ---------------------------------------------------------------------------
+// Location permission help — browsers refuse to re-show the permission
+// prompt once a site is blocked, so the only way back in is the browser's
+// own site-settings UI. We detect the blocked state proactively (Permissions
+// API) and give platform-specific instructions for finding that UI, since
+// the menu path differs by browser/OS and there is no way to deep-link it.
+// ---------------------------------------------------------------------------
+
+function detectPlatform() {
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua);
+  const isFirefox = /Firefox/.test(ua);
+  const isEdge = /Edg\//.test(ua);
+  const isChrome = /Chrome/.test(ua) && !isEdge;
+  const isSafari = /Safari/.test(ua) && !isChrome && !isEdge && !isFirefox;
+
+  if (isIOS && isSafari) return 'ios-safari';
+  if (isIOS) return 'ios-other'; // Chrome/Firefox on iOS use Apple's WebKit + iOS Settings
+  if (isAndroid && isChrome) return 'android-chrome';
+  if (isAndroid && isFirefox) return 'android-firefox';
+  if (isAndroid) return 'android-other';
+  if (isFirefox) return 'desktop-firefox';
+  if (isSafari) return 'desktop-safari';
+  if (isEdge) return 'desktop-edge';
+  if (isChrome) return 'desktop-chrome';
+  return 'unknown';
+}
+
+const LOCATION_HELP = {
+  'ios-safari': [
+    'Open the iPhone/iPad <strong>Settings</strong> app.',
+    'Scroll down to <strong>Safari</strong> → <strong>Location</strong> (under Settings for Websites), or go to <strong>Privacy &amp; Security → Location Services → Safari Websites</strong>.',
+    'Set it to <strong>Ask Next Time</strong> or <strong>Allow</strong>.',
+    'Also confirm <strong>Location Services</strong> is turned on at the top of Privacy &amp; Security.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'ios-other': [
+    'Open the iPhone/iPad <strong>Settings</strong> app.',
+    'Go to <strong>Privacy &amp; Security → Location Services</strong> and make sure it\'s on.',
+    'Find your browser app in that list and set it to <strong>Ask Next Time or When I Share</strong>.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'android-chrome': [
+    'Tap the <strong>lock/info icon</strong> to the left of the address bar.',
+    'Tap <strong>Permissions</strong> (or <strong>Site settings</strong>) → <strong>Location</strong> → <strong>Allow</strong>.',
+    'Also check the phone\'s system <strong>Settings → Location</strong> is turned on.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'android-firefox': [
+    'Tap the <strong>lock icon</strong> to the left of the address bar.',
+    'Tap <strong>Edit Site Settings</strong> (or Permissions) → set <strong>Location</strong> to <strong>Allow</strong>.',
+    'Also check the phone\'s system <strong>Settings → Location</strong> is turned on.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'android-other': [
+    'Open your browser\'s site settings for this page (often a lock or ⓘ icon in the address bar) and set <strong>Location</strong> to <strong>Allow</strong>.',
+    'Also check the phone\'s system <strong>Settings → Location</strong> is turned on.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'desktop-chrome': [
+    'Click the <strong>lock/tune icon</strong> to the left of the address bar.',
+    'Set <strong>Location</strong> to <strong>Allow</strong> (or remove the "Block" override).',
+    'macOS also requires <strong>System Settings → Privacy &amp; Security → Location Services</strong> to be on for your browser.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'desktop-edge': [
+    'Click the <strong>lock icon</strong> to the left of the address bar.',
+    'Set <strong>Location</strong> permission to <strong>Allow</strong>.',
+    'macOS also requires <strong>System Settings → Privacy &amp; Security → Location Services</strong> to be on for your browser; Windows requires <strong>Settings → Privacy → Location</strong>.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'desktop-firefox': [
+    'Click the <strong>lock icon</strong> to the left of the address bar.',
+    'Clear the blocked location permission (click the ⓧ next to it, or open <strong>Permissions</strong>) and set it back to <strong>Allow</strong>.',
+    'macOS also requires <strong>System Settings → Privacy &amp; Security → Location Services</strong> to be on for Firefox.',
+    'Reload this page and press START RIDE again.',
+  ],
+  'desktop-safari': [
+    'Open <strong>Safari → Settings → Websites → Location</strong> and set this site to <strong>Allow</strong>.',
+    'Also check <strong>System Settings → Privacy &amp; Security → Location Services</strong> is on, and Safari is allowed there.',
+    'Reload this page and press START RIDE again.',
+  ],
+  unknown: [
+    'Open this browser\'s site settings for this page (usually a lock icon in the address bar) and set <strong>Location</strong> to <strong>Allow</strong>.',
+    'Also check your device/OS location settings are turned on for this browser.',
+    'Reload this page and press START RIDE again.',
+  ],
+};
+
+function locationHelpHtml() {
+  const steps = LOCATION_HELP[detectPlatform()] || LOCATION_HELP.unknown;
+  return (
+    '<p>GPS4B only uses your location while a ride is recording. If the browser ' +
+    "isn't asking for permission (or already said no), it has to be re-enabled " +
+    'manually:</p><ol>' +
+    steps.map((s) => `<li>${s}</li>`).join('') +
+    '</ol>'
+  );
+}
+
+function openLocationHelp() {
+  $('location-help-text').innerHTML = locationHelpHtml();
+  $('location-help-panel').hidden = false;
+  $('location-help-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeLocationHelp() {
+  $('location-help-panel').hidden = true;
+}
+
+/**
+ * Proactively check (and watch) geolocation permission state via the
+ * Permissions API, where supported, so a previously-blocked user sees the
+ * banner immediately instead of only after pressing START RIDE and getting
+ * an error. Safari/iOS don't support 'geolocation' in the Permissions API;
+ * there the banner only appears after a failed request.
+ */
+async function watchLocationPermission() {
+  if (!('permissions' in navigator)) return;
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    renderLocationBanner(status.state === 'denied');
+    status.onchange = () => renderLocationBanner(status.state === 'denied');
+  } catch {
+    /* Permissions API doesn't support 'geolocation' on this browser */
+  }
+}
+
+function renderLocationBanner(blocked) {
+  $('location-banner').hidden = !blocked;
+}
+
 async function onPosition(position) {
   if (!activeRide) return;
   const now = position.timestamp || Date.now();
@@ -634,10 +767,16 @@ async function main() {
         activeRide = null;
       }
       showError(e.message);
+      if (/permission denied/i.test(e.message)) renderLocationBanner(true);
     } finally {
       $('btn-start').disabled = false;
     }
   };
+
+  $('btn-location-help').onclick = openLocationHelp;
+  $('btn-location-help-link').onclick = openLocationHelp;
+  $('location-help-close').onclick = closeLocationHelp;
+  watchLocationPermission();
 
   $('btn-stop').onclick = async () => {
     $('btn-stop').disabled = true;

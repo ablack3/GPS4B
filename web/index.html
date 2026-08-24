@@ -27,6 +27,28 @@
     }
     body.recording .screen-warning { display: block; }
 
+    .location-banner {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: #fdecea; border: 1px solid #f5b5ad; color: #8a2c22;
+      border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; margin: 8px 0;
+    }
+    .location-banner button {
+      flex-shrink: 0; font-size: 0.78rem; padding: 6px 12px; border-radius: 8px;
+      border: 1px solid #c0392b; background: #fff; color: #c0392b; cursor: pointer;
+    }
+    .text-link {
+      background: none; border: none; color: #2e7d32; font-size: 0.82rem;
+      text-decoration: underline; cursor: pointer; padding: 4px 0; text-align: center;
+    }
+    #location-help-panel {
+      margin-top: 18px; background: #fff; border: 1px solid #ddd;
+      border-radius: 12px; padding: 14px 16px;
+    }
+    #location-help-title { font-weight: 600; margin-bottom: 10px; }
+    #location-help-text ol { margin: 0 0 4px 1.2rem; padding: 0; }
+    #location-help-text li { margin-bottom: 6px; font-size: 0.88rem; line-height: 1.4; }
+    #location-help-text p { font-size: 0.85rem; color: #555; margin-bottom: 8px; }
+
     #controls { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
 
     .recording-row { display: none; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
@@ -128,6 +150,11 @@
       records even with the screen locked.)
     </div>
 
+    <div id="location-banner" class="location-banner" hidden>
+      <span>⚠️ Location access is blocked for this site.</span>
+      <button id="btn-location-help">How to enable it</button>
+    </div>
+
     <div id="controls">
       <div class="recording-row"><div class="dot"></div><span>Ride: Recording</span></div>
       <div id="point-count">0 GPS points recorded</div>
@@ -149,6 +176,9 @@
 
       <div id="status-line"></div>
       <div id="error-line"></div>
+      <button id="btn-location-help-link" class="text-link">
+        Location not working? Show me how to enable it
+      </button>
     </div>
 
     <div id="map-panel" hidden>
@@ -161,6 +191,15 @@
           ©&nbsp;<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors
         </span>
         <button id="map-close">Close map</button>
+      </div>
+    </div>
+
+    <div id="location-help-panel" hidden>
+      <div id="location-help-title">Enabling location access</div>
+      <div id="location-help-text"></div>
+      <div class="map-footer">
+        <span></span>
+        <button id="location-help-close">Close</button>
       </div>
     </div>
 
