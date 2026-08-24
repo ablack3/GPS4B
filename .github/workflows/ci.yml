@@ -1,0 +1,125 @@
+name: CI
+
+# Runs on every push and PR: server unit tests, then a full end-to-end test
+# (real Chromium + mocked GPS -> web app -> API -> Postgres/PostGIS). The web
+# app is redeployed to GitHub Pages on every push to main, but only after
+# both test jobs pass.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+      - name: Run server unit tests
+        run: npm test
+        working-directory: server
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: gps4b
+          POSTGRES_PASSWORD: gps4b
+          POSTGRES_DB: gps4b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gps4b"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Start API server
+        run: nohup npm start > server.log 2>&1 &
+        working-directory: server
+        env:
+          DATABASE_URL: postgres://gps4b:gps4b@localhost:5432/gps4b
+          PORT: 3000
+
+      - name: Wait for API health check
+        run: |
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:3000/health && exit 0
+            sleep 1
+          done
+          echo "API never became healthy"; cat server.log; exit 1
+        working-directory: server
+
+      - name: Serve the web app
+        run: nohup npx http-server -p 8080 -s > web.log 2>&1 &
+        working-directory: web
+
+      - name: Wait for web app
+        run: |
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:8080/ > /dev/null && exit 0
+            sleep 1
+          done
+          echo "Web app never came up"; cat web.log; exit 1
+        working-directory: web
+
+      - name: Install e2e dependencies
+        run: npm ci
+        working-directory: e2e
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+
+      - name: Run end-to-end test
+        run: node test.js http://localhost:8080/ http://localhost:3000
+        working-directory: e2e
+
+      - name: Server log (always, for debugging)
+        if: always()
+        run: cat server/server.log || true
+
+  deploy:
+    needs: [server-tests, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish web/ to gh-pages branch
+        run: |
+          cd web
+          touch .nojekyll
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy web app from ${GITHUB_SHA::7}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages

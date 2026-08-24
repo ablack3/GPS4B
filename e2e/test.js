@@ -120,7 +120,7 @@ async function main() {
 
   const points = await page.evaluate((id) => window.GPS4B.store.getPoints(id), rideId);
   const conditions = [...new Set(points.map((p) => p.condition))].sort();
-  assert.deepEqual(conditions, ['UNSAFE', 'SAFE'], 'both conditions recorded');
+  assert.deepEqual(conditions, ['SAFE', 'UNSAFE'], 'both conditions recorded');
   const ordered = points.map((p) => p.timestamp);
   assert.deepEqual(ordered, [...ordered].sort(), 'points in time order');
   for (const p of points) {
