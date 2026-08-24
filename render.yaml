@@ -18,7 +18,7 @@ services:
     plan: free
     rootDir: server
     dockerfilePath: ./Dockerfile
-    branch: claude/gps4b-mobile-app-tb80v2
+    branch: main
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
