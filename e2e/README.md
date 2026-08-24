@@ -13,7 +13,7 @@ npx playwright install chromium   # once, if no browser is present
 node test.js http://localhost:8080/ http://localhost:3000
 
 # Against deployed instances (e.g. GitHub Pages + Render):
-node test.js https://ablack3033.github.io/GPS4B/ https://gps4b-api.onrender.com
+node test.js https://ablack3.github.io/GPS4B/ https://gps4b-api.onrender.com
 
 # Web app only (skips the sync/database steps):
 node test.js http://localhost:8080/

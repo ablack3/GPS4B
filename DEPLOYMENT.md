@@ -72,7 +72,7 @@ curl -fsSL https://get.docker.com | sh
 **3. Get the code onto the server** and set a real database password:
 
 ```bash
-git clone https://github.com/ablack3033/GPS4B.git
+git clone https://github.com/ablack3/GPS4B.git
 cd GPS4B/server
 ```
 
@@ -274,7 +274,7 @@ testers (up to 100) need no Apple review.
 A browser version of the recording app lives in `web/` — plain HTML/JS, no
 build step — and is deployed automatically to **GitHub Pages** at:
 
-> https://ablack3033.github.io/GPS4B/
+> https://ablack3.github.io/GPS4B/
 
 The workflow `.github/workflows/deploy-pages.yml` publishes `web/` to the
 `gh-pages` branch on every push that touches `web/`. GitHub Pages serves that

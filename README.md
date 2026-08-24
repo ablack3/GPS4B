@@ -17,7 +17,7 @@ server/   Minimal Node/Express backend + PostgreSQL/PostGIS schema
 web/      Browser version (static PWA) — deployed to GitHub Pages
 ```
 
-The web version is served at **https://ablack3033.github.io/GPS4B/** (see
+The web version is served at **https://ablack3.github.io/GPS4B/** (see
 `.github/workflows/deploy-pages.yml`). It implements the same record →
 annotate → store → sync flow using browser geolocation and IndexedDB, with
 JSON/CSV export. One honest caveat: browsers stop GPS when the screen locks,
@@ -32,7 +32,7 @@ Deploying to a real server and real phones is covered step-by-step in
 The fastest path from "code in a repo" to "recording real rides":
 
 1. **Try the web app right now.** It's deployed to the `gh-pages` branch.
-   To serve it at https://ablack3033.github.io/GPS4B/ make the repo public
+   To serve it at https://ablack3.github.io/GPS4B/ make the repo public
    (Settings → General → Change visibility) and enable Pages
    (Settings → Pages → Deploy from a branch → `gh-pages`). Until then, any
    static file server pointed at `web/` works, and the app runs entirely

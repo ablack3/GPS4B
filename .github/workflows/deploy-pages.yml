@@ -1,13 +1,13 @@
 name: Deploy web app to GitHub Pages
 
 # Publishes web/ to the gh-pages branch, which GitHub Pages serves at
-# https://ablack3033.github.io/GPS4B/. Branch-based publishing is used
+# https://ablack3.github.io/GPS4B/. Branch-based publishing is used
 # (rather than actions/deploy-pages) because it works with the default
 # GITHUB_TOKEN — no repository-admin Pages configuration required.
 
 on:
   push:
-    branches: [claude/gps4b-mobile-app-tb80v2, main]
+    branches: [main]
     paths:
       - 'web/**'
       - '.github/workflows/deploy-pages.yml'
