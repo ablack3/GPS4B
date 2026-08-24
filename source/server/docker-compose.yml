@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: gps4b
+      POSTGRES_PASSWORD: gps4b
+      POSTGRES_DB: gps4b
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./schema-postgis.sql:/docker-entrypoint-initdb.d/02-postgis.sql:ro
+      - gps4b-pgdata:/var/lib/postgresql/data
+
+  # The API. For local development you can skip this and run `npm start`
+  # instead: `docker compose up -d db`.
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://gps4b:gps4b@db:5432/gps4b
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  gps4b-pgdata:

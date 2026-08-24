@@ -1,0 +1,184 @@
+# GPS4B v0.1 — Mobile Data Collection
+
+GPS4B records a rider's GPS location over time and lets the rider tag the
+current portion of the ride as **GOOD** or **BAD**. The goal is data
+collection, not navigation: the phone is a sensor that observes, annotates,
+stores, and syncs. All analysis happens downstream of the central database.
+
+```
+REAL WORLD → PHONE → GPS + HUMAN JUDGMENT → LOCAL STORAGE → SYNC → CENTRAL DATABASE
+```
+
+## Repository layout
+
+```
+mobile/   Expo (React Native + TypeScript) app for iOS and Android
+server/   Minimal Node/Express backend + PostgreSQL/PostGIS schema
+web/      Browser version (static PWA) — deployed to GitHub Pages
+```
+
+The web version is served at **https://ablack3033.github.io/GPS4B/** (see
+`.github/workflows/deploy-pages.yml`). It implements the same record →
+annotate → store → sync flow using browser geolocation and IndexedDB, with
+JSON/CSV export. One honest caveat: browsers stop GPS when the screen locks,
+so for real rides with the phone in a pocket the native mobile app is the
+tool; the web app is for trying GPS4B and short screen-on recordings.
+
+Deploying to a real server and real phones is covered step-by-step in
+[DEPLOYMENT.md](./DEPLOYMENT.md).
+
+## Start using GPS4B — next steps
+
+The fastest path from "code in a repo" to "recording real rides":
+
+1. **Try the web app right now.** It's deployed to the `gh-pages` branch.
+   To serve it at https://ablack3033.github.io/GPS4B/ make the repo public
+   (Settings → General → Change visibility) and enable Pages
+   (Settings → Pages → Deploy from a branch → `gh-pages`). Until then, any
+   static file server pointed at `web/` works, and the app runs entirely
+   in the browser.
+2. **Stand up the central server** (collects rides from all devices):
+   sign in at [render.com](https://render.com) → **New + → Blueprint** →
+   select this repo → **Apply**. Render reads `render.yaml` and creates the
+   free Postgres database + the API; the server creates its own schema on
+   first boot. Copy the service URL (`https://gps4b-api-….onrender.com`).
+3. **Connect the web app to the server**: open the app → *Rides & sync* →
+   paste the server URL → Save. Completed rides now upload automatically
+   (with retry; nothing is lost offline).
+4. **Record a ride**: press **START RIDE**, allow location access, ride,
+   toggle **GOOD/BAD** as conditions change, press **STOP RIDE**. The
+   screen stays awake while recording (toggleable).
+5. **Verify the data**: tap **Map** on any ride (or **Show live track**
+   during a ride) to see the recorded points over OpenStreetMap, colored
+   green/red by condition, with distance, duration, and GPS accuracy — the
+   quickest way to confirm recording is working correctly. For the server
+   side, `GET <server>/rides/<ride_id>` returns the stored ride, or query
+   Postgres directly (`SELECT … FROM location_points WHERE ride_id = …`).
+6. **When ready for pocket recording** (screen off, phone locked), build
+   the native app in `mobile/` — see [DEPLOYMENT.md](./DEPLOYMENT.md) for
+   the EAS build steps (Android APK needs no store account).
+
+Automated end-to-end verification of all of this lives in `e2e/` —
+`node test.js <appUrl> <apiUrl>` drives a real browser with mocked GPS
+through record → annotate → store → sync → database.
+
+## How it works
+
+### Mobile app (`mobile/`)
+
+A single-screen app:
+
+- **START RIDE** — creates a ride (unique `ride_id`, start timestamp, default
+  condition `GOOD`), requests location permissions, and starts background GPS
+  collection.
+- **GOOD / BAD** — toggles the ride's current condition. Every GPS point
+  inherits the condition active when it is recorded, which yields
+  segment-level information without per-point annotation.
+- **STOP RIDE** — stops GPS collection, records the end timestamp, marks the
+  ride complete, and queues it for upload.
+
+Key implementation points:
+
+- **GPS sampling** — one observation roughly every 5 seconds (configurable in
+  `mobile/src/config.ts`), collected via `expo-location` +
+  `expo-task-manager` so recording continues while the phone is locked or the
+  app is backgrounded. On Android a visible foreground-service notification
+  keeps recording alive; on iOS the background location indicator is shown.
+  Location is only collected while a ride is active.
+- **Local storage** — everything is written to SQLite (`expo-sqlite`) first.
+  The app works with no network connection; rides stay on the device until
+  the server confirms the upload.
+- **Sync** — completed rides move through `LOCAL → PENDING → UPLOADING →
+  SYNCED`. Upload is attempted when a ride ends, when the app opens or
+  returns to the foreground, and periodically while the app is active. A
+  failed upload puts the ride back in `PENDING`; nothing is deleted. Rides
+  interrupted mid-upload (app killed) are re-queued on the next launch.
+- **Identity** — no accounts. A random persistent `user_...` identifier is
+  generated per installation so rides from the same installation can be
+  associated.
+
+### Backend (`server/`)
+
+A deliberately small Express app backed by PostgreSQL + PostGIS:
+
+- `POST /rides` — validates and stores a completed ride with all of its GPS
+  observations in one transaction. **Idempotent on `ride_id`**: re-sending an
+  already-stored ride returns success without creating duplicates, so the
+  mobile app can retry freely.
+- `GET /rides/:id` — returns the ride and its ordered points (verification /
+  debugging).
+- `GET /health` — liveness + database connectivity.
+
+The schema (`server/schema.sql`) preserves raw observations immutably and
+adds a generated PostGIS `geometry(Point, 4326)` column plus a GiST index so
+later geospatial analysis (map matching, segment scoring) is easy.
+
+## Running the backend
+
+```bash
+cd server
+
+# 1. Start PostgreSQL + PostGIS (applies schema.sql on first run)
+docker compose up -d db
+
+# 2. Install dependencies and start the API
+npm install
+npm start          # listens on :3000; override with PORT / DATABASE_URL
+```
+
+Defaults: `DATABASE_URL=postgres://gps4b:gps4b@localhost:5432/gps4b`.
+
+Run the unit tests with `npm test`.
+
+## Running the mobile app
+
+```bash
+cd mobile
+npm install
+```
+
+Point the app at your server: edit `apiUrl` in `mobile/src/config.ts` to your
+machine's LAN address (e.g. `http://192.168.1.42:3000` — the phone must be
+able to reach it; plain HTTP is for local development only, use HTTPS for any
+real deployment).
+
+Background location requires a **development build** — it does not work in
+Expo Go:
+
+```bash
+npx expo run:android    # Android device/emulator
+npx expo run:ios        # iOS (requires macOS + Xcode)
+```
+
+(or build with EAS: `eas build --profile development`.)
+
+When starting the first ride, grant location access **"Allow all the time"**
+(Android) / **"Always"** (iOS) so recording continues while the phone is
+locked.
+
+## Verifying the v0.1 acceptance flow
+
+1. Start the backend and install the app on a phone.
+2. Press **START RIDE**, pocket the phone, ride, toggle **GOOD/BAD** a few
+   times, lock the phone for part of the ride.
+3. Press **STOP RIDE**. With no connectivity the ride shows as
+   "waiting to upload" and survives app restarts; once connectivity returns
+   (and the app is opened) it uploads automatically.
+4. Query the central database:
+
+```sql
+SELECT "timestamp", latitude, longitude, condition
+FROM location_points
+WHERE ride_id = '<ride id>'
+ORDER BY "timestamp";
+```
+
+You should see the complete ordered series of GPS observations with the
+correct GOOD/BAD state for each portion of the ride.
+
+## Explicitly out of scope for v0.1
+
+Navigation, route recommendations, map matching, machine learning, social
+features, real-time streaming, push notifications, and authentication. See
+the v0.1 requirements document for the full list — none of these should delay
+the data collection experiment.

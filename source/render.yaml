@@ -1,0 +1,27 @@
+# Render Blueprint for the GPS4B backend.
+#
+# In the Render dashboard: New + -> Blueprint -> select this repository ->
+# Apply. Render provisions the Postgres database and the API service, wires
+# DATABASE_URL, and auto-deploys on every push to the branch below.
+# The server creates its schema (and the PostGIS layer) on first startup.
+
+databases:
+  - name: gps4b-db
+    plan: free
+    databaseName: gps4b
+    user: gps4b
+
+services:
+  - type: web
+    name: gps4b-api
+    runtime: docker
+    plan: free
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    branch: claude/gps4b-mobile-app-tb80v2
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gps4b-db
+          property: connectionString

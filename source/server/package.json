@@ -1,0 +1,16 @@
+{
+  "name": "gps4b-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GPS4B v0.1 backend: receives completed rides and stores them in PostgreSQL/PostGIS",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

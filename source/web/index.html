@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2e7d32" />
+  <title>GPS4B</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.png" />
+  <link rel="apple-touch-icon" href="./icon.png" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center;
+      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    }
+    main { width: 100%; max-width: 480px; display: flex; flex-direction: column; flex: 1; }
+    h1 { font-size: 2rem; font-weight: 800; letter-spacing: 3px; text-align: center; margin: 28px 0 4px; }
+    .subtitle { text-align: center; color: #777; font-size: 0.85rem; margin-bottom: 12px; }
+
+    .screen-warning {
+      display: none; background: #fff3cd; border: 1px solid #ffe08a; color: #6b5300;
+      border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; margin: 8px 0;
+    }
+    body.recording .screen-warning { display: block; }
+
+    #controls { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+
+    .recording-row { display: none; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
+    body.recording .recording-row { display: flex; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: #d32f2f; animation: pulse 1.4s infinite; }
+    @keyframes pulse { 50% { opacity: 0.35; } }
+    .recording-row span { font-size: 1.3rem; font-weight: 600; }
+    #point-count { display: none; text-align: center; color: #555; }
+    body.recording #point-count { display: block; }
+    #wake-status { display: none; text-align: center; color: #2e7d32; font-size: 0.85rem; }
+    body.recording #wake-status { display: block; }
+    #wake-status.wake-warning { color: #b26a00; }
+    .wake-toggle {
+      display: none; align-items: center; justify-content: center; gap: 8px;
+      color: #555; font-size: 0.9rem; cursor: pointer; user-select: none;
+    }
+    body.recording .wake-toggle { display: flex; }
+    .wake-toggle input { width: 20px; height: 20px; accent-color: #2e7d32; cursor: pointer; }
+
+    .section-label { display: none; text-align: center; color: #333; font-size: 1rem; margin-top: 10px; }
+    body.recording .section-label { display: block; }
+    .condition-row { display: none; gap: 14px; }
+    body.recording .condition-row { display: flex; }
+    .condition-row button {
+      flex: 1; padding: 26px 0; font-size: 1.4rem; font-weight: 700; color: #444;
+      background: #fff; border: 2px solid #bbb; border-radius: 16px; cursor: pointer;
+    }
+    #btn-good.active { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+    #btn-bad.active  { background: #c62828; border-color: #c62828; color: #fff; }
+
+    .big-btn {
+      width: 100%; padding: 28px 0; border: none; border-radius: 20px; cursor: pointer;
+      font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; color: #fff; margin-top: 18px;
+    }
+    #btn-start { background: #2e7d32; display: block; }
+    #btn-stop  { background: #c62828; display: none; }
+    body.recording #btn-start { display: none; }
+    body.recording #btn-stop  { display: block; }
+    .big-btn:disabled { opacity: 0.6; }
+
+    #status-line { text-align: center; color: #777; font-size: 0.9rem; margin-top: 14px; min-height: 1.2em; }
+    #error-line { text-align: center; color: #c62828; font-size: 0.9rem; margin-top: 6px; min-height: 1.2em; }
+
+    #map-panel {
+      margin-top: 18px; background: #fff; border: 1px solid #ddd;
+      border-radius: 12px; padding: 12px 14px;
+    }
+    #map-title { font-weight: 600; margin-bottom: 8px; }
+    #map-canvas {
+      width: 100%; height: 340px; display: block; border-radius: 8px;
+      background: #eef1ee; touch-action: none;
+    }
+    #map-stats { color: #555; font-size: 0.85rem; margin-top: 8px; text-align: center; }
+    #map-note { color: #b26a00; font-size: 0.78rem; margin-top: 4px; text-align: center; }
+    .map-footer {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 8px;
+    }
+    #map-attribution { color: #888; font-size: 0.72rem; }
+    #map-attribution a { color: inherit; }
+    #map-close {
+      font-size: 0.85rem; padding: 6px 14px; border-radius: 8px;
+      border: 1px solid #bbb; background: #fafafa; cursor: pointer;
+    }
+    #btn-show-map {
+      display: none; margin: 0 auto; font-size: 0.9rem; padding: 8px 18px;
+      border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; color: #333;
+    }
+    body.recording #btn-show-map { display: block; }
+    details { margin-top: 22px; background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 12px 14px; }
+    details summary { cursor: pointer; font-weight: 600; color: #333; }
+    .ride-item { border-top: 1px solid #eee; padding: 10px 0; font-size: 0.85rem; }
+    .ride-item .meta { color: #555; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 8px; font-size: 0.72rem; font-weight: 700; color: #fff; }
+    .badge.SYNCED { background: #2e7d32; }
+    .badge.PENDING, .badge.UPLOADING { background: #ef6c00; }
+    .badge.LOCAL { background: #757575; }
+    .ride-actions { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .ride-actions button, .settings-row button {
+      font-size: 0.78rem; padding: 5px 10px; border-radius: 8px; border: 1px solid #bbb;
+      background: #fafafa; cursor: pointer;
+    }
+    .settings-row { display: flex; gap: 8px; margin-top: 10px; }
+    .settings-row input {
+      flex: 1; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; font-size: 0.85rem;
+    }
+    .hint { color: #888; font-size: 0.78rem; margin-top: 8px; line-height: 1.45; }
+    footer { margin: 26px 0 16px; color: #aaa; font-size: 0.75rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GPS4B</h1>
+    <div class="subtitle">bicycle ride data collection</div>
+
+    <div class="screen-warning">
+      GPS4B keeps the screen on while recording, like a navigation app.
+      Keep this page open — don't press the power button or switch apps,
+      because web browsers stop GPS when the page is hidden. (The native app
+      records even with the screen locked.)
+    </div>
+
+    <div id="controls">
+      <div class="recording-row"><div class="dot"></div><span>Ride: Recording</span></div>
+      <div id="point-count">0 GPS points recorded</div>
+      <div id="wake-status"></div>
+      <label class="wake-toggle">
+        <input type="checkbox" id="keep-awake-toggle" checked />
+        Keep screen on
+      </label>
+      <button id="btn-show-map">Show live track</button>
+
+      <div class="section-label">Current condition</div>
+      <div class="condition-row">
+        <button id="btn-good" class="active">GOOD</button>
+        <button id="btn-bad">BAD</button>
+      </div>
+
+      <button id="btn-start" class="big-btn">START RIDE</button>
+      <button id="btn-stop" class="big-btn">STOP RIDE</button>
+
+      <div id="status-line"></div>
+      <div id="error-line"></div>
+    </div>
+
+    <div id="map-panel" hidden>
+      <div id="map-title"></div>
+      <canvas id="map-canvas"></canvas>
+      <div id="map-stats"></div>
+      <div id="map-note"></div>
+      <div class="map-footer">
+        <span id="map-attribution" hidden>
+          ©&nbsp;<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors
+        </span>
+        <button id="map-close">Close map</button>
+      </div>
+    </div>
+
+    <details id="rides-panel">
+      <summary>Rides &amp; sync</summary>
+      <div id="rides-list"></div>
+      <div class="settings-row">
+        <input id="server-url" type="url" placeholder="Server URL (e.g. https://gps4b.example.org)" />
+        <button id="btn-save-server">Save</button>
+        <button id="btn-sync-now">Sync now</button>
+      </div>
+      <div class="hint">
+        Rides are stored in this browser and never leave your device unless a
+        server URL is set (or you export them). Set the URL of a GPS4B server
+        to sync automatically, or use Export to download rides as JSON/CSV.
+      </div>
+    </details>
+
+    <footer>
+      GPS4B v0.1 web · location is only recorded during an active ride ·
+      <span id="user-id-label"></span>
+    </footer>
+  </main>
+
+  <script src="./map.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "GPS4B",
+  "short_name": "GPS4B",
+  "description": "Bicycle ride data collection: record GPS points and tag riding conditions.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f5f5",
+  "theme_color": "#2e7d32",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "gps4b-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end test of the GPS4B web app: mocked GPS in real Chromium through to the central database",
+  "scripts": {
+    "test": "node test.js http://localhost:8080/ http://localhost:3000"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
