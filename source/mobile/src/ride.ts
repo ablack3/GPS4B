@@ -33,7 +33,7 @@ export async function startRide(): Promise<StartRideResult> {
 
   // Create and persist the ride before tracking starts so the very first
   // location batch already has a ride (and default condition) to attach to.
-  const ride = createRide('GOOD');
+  const ride = createRide('SAFE');
   await startTracking();
   return { ok: true, ride, backgroundGranted: perms.background };
 }

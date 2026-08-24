@@ -29,7 +29,7 @@ import type { Condition, Ride } from './src/types';
 
 export default function App() {
   const [ride, setRide] = useState<Ride | null>(null);
-  const [condition, setCondition] = useState<Condition>('GOOD');
+  const [condition, setCondition] = useState<Condition>('SAFE');
   const [pointCount, setPointCount] = useState(0);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -143,34 +143,34 @@ export default function App() {
               accessibilityRole="button"
               style={[
                 styles.conditionButton,
-                condition === 'GOOD' && styles.conditionGoodActive,
+                condition === 'SAFE' && styles.conditionSafeActive,
               ]}
-              onPress={() => onCondition('GOOD')}
+              onPress={() => onCondition('SAFE')}
             >
               <Text
                 style={[
                   styles.conditionButtonText,
-                  condition === 'GOOD' && styles.conditionButtonTextActive,
+                  condition === 'SAFE' && styles.conditionButtonTextActive,
                 ]}
               >
-                GOOD
+                SAFE
               </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               style={[
                 styles.conditionButton,
-                condition === 'BAD' && styles.conditionBadActive,
+                condition === 'UNSAFE' && styles.conditionUnsafeActive,
               ]}
-              onPress={() => onCondition('BAD')}
+              onPress={() => onCondition('UNSAFE')}
             >
               <Text
                 style={[
                   styles.conditionButtonText,
-                  condition === 'BAD' && styles.conditionButtonTextActive,
+                  condition === 'UNSAFE' && styles.conditionButtonTextActive,
                 ]}
               >
-                BAD
+                UNSAFE
               </Text>
             </Pressable>
           </View>
@@ -265,11 +265,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
   },
-  conditionGoodActive: {
+  conditionSafeActive: {
     backgroundColor: '#2e7d32',
     borderColor: '#2e7d32',
   },
-  conditionBadActive: {
+  conditionUnsafeActive: {
     backgroundColor: '#c62828',
     borderColor: '#c62828',
   },

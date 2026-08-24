@@ -1,7 +1,7 @@
 # GPS4B end-to-end test
 
 Drives the web app in a real Chromium with mocked GPS through the full v0.1
-acceptance flow: start ride → points accumulate → GOOD/BAD segments → stop →
+acceptance flow: start ride → points accumulate → SAFE/UNSAFE segments → stop →
 data survives reload → offline sync fails safely → online sync succeeds →
 ride verified in the central database → re-sync is idempotent.
 

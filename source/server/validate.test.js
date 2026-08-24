@@ -8,7 +8,7 @@ const validPoint = {
   latitude: 42.3601,
   longitude: -71.0589,
   accuracy: 4.2,
-  condition: 'GOOD',
+  condition: 'SAFE',
 };
 
 const validPayload = {
@@ -16,7 +16,7 @@ const validPayload = {
   user_id: 'user_abc',
   started_at: '2026-08-22T16:00:00Z',
   ended_at: '2026-08-22T16:32:00Z',
-  points: [validPoint, { ...validPoint, condition: 'BAD' }],
+  points: [validPoint, { ...validPoint, condition: 'UNSAFE' }],
 };
 
 test('accepts a valid payload', () => {
@@ -32,7 +32,7 @@ test('accepts a payload without user_id or optional point fields', () => {
         timestamp: '2026-08-22T16:00:03Z',
         latitude: 0,
         longitude: 0,
-        condition: 'BAD',
+        condition: 'UNSAFE',
       },
     ],
   };

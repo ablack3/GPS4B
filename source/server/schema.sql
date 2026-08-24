@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS location_points (
     altitude   double precision,
     speed      double precision,
     heading    double precision,
-    condition  text NOT NULL CHECK (condition IN ('GOOD', 'BAD'))
+    condition  text NOT NULL CHECK (condition IN ('SAFE', 'UNSAFE'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_location_points_ride

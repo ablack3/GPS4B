@@ -28,7 +28,7 @@ function initDb(): void {
       id TEXT PRIMARY KEY,
       started_at TEXT NOT NULL,
       ended_at TEXT,
-      current_condition TEXT NOT NULL DEFAULT 'GOOD',
+      current_condition TEXT NOT NULL DEFAULT 'SAFE',
       sync_status TEXT NOT NULL DEFAULT 'LOCAL',
       created_at TEXT NOT NULL
     );
@@ -70,7 +70,7 @@ export function getOrCreateUserId(): string {
   return userId;
 }
 
-export function createRide(condition: Condition = 'GOOD'): Ride {
+export function createRide(condition: Condition = 'SAFE'): Ride {
   const now = new Date().toISOString();
   const ride: Ride = {
     id: `ride_${Crypto.randomUUID()}`,

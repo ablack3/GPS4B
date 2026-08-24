@@ -4,7 +4,7 @@
  * Usage: node test.js <appUrl> [apiUrl]
  *
  * Drives the full v0.1 acceptance flow in a real Chromium with mocked GPS:
- * start ride -> points accumulate -> toggle GOOD/BAD -> stop ride ->
+ * start ride -> points accumulate -> toggle SAFE/UNSAFE -> stop ride ->
  * data persists across reload -> offline sync fails safely -> online sync
  * succeeds -> ride verified in the central database via the API.
  * If apiUrl is omitted, the sync/database steps are skipped.
@@ -24,9 +24,9 @@ const route = [
   { latitude: 42.3601, longitude: -71.0589 },
   { latitude: 42.3602, longitude: -71.0591 },
   { latitude: 42.3603, longitude: -71.0593 },
-  { latitude: 42.3604, longitude: -71.0595 }, // condition -> BAD before this
+  { latitude: 42.3604, longitude: -71.0595 }, // condition -> UNSAFE before this
   { latitude: 42.3605, longitude: -71.0597 },
-  { latitude: 42.3606, longitude: -71.0599 }, // condition -> GOOD before this
+  { latitude: 42.3606, longitude: -71.0599 }, // condition -> SAFE before this
   { latitude: 42.3607, longitude: -71.0601 },
 ];
 
@@ -90,7 +90,7 @@ async function main() {
   const userId = await page.evaluate(() => window.GPS4B.getUserId());
   assert.ok(userId.startsWith('user_'), 'anonymous user id created');
 
-  console.log('3. Riding (GOOD), feeding GPS positions...');
+  console.log('3. Riding (SAFE), feeding GPS positions...');
   const feed = async (from, to) => {
     for (let i = from; i < to; i++) {
       await context.setGeolocation({ ...route[i], accuracy: 5 });
@@ -99,12 +99,12 @@ async function main() {
   };
   await feed(0, 3);
 
-  console.log('4. Toggle condition to BAD');
-  await page.click('#btn-bad');
+  console.log('4. Toggle condition to UNSAFE');
+  await page.click('#btn-unsafe');
   await feed(3, 5);
 
-  console.log('5. Toggle condition back to GOOD');
-  await page.click('#btn-good');
+  console.log('5. Toggle condition back to SAFE');
+  await page.click('#btn-safe');
   await feed(5, 7);
 
   const livePoints = await page.evaluate(
@@ -120,16 +120,16 @@ async function main() {
 
   const points = await page.evaluate((id) => window.GPS4B.store.getPoints(id), rideId);
   const conditions = [...new Set(points.map((p) => p.condition))].sort();
-  assert.deepEqual(conditions, ['BAD', 'GOOD'], 'both conditions recorded');
+  assert.deepEqual(conditions, ['UNSAFE', 'SAFE'], 'both conditions recorded');
   const ordered = points.map((p) => p.timestamp);
   assert.deepEqual(ordered, [...ordered].sort(), 'points in time order');
   for (const p of points) {
     assert.ok(p.latitude >= 42.36 && p.latitude <= 42.361, 'latitude plausible');
     assert.ok(typeof p.accuracy === 'number', 'accuracy captured');
   }
-  // The BAD segment must be contiguous and in the middle of the ride.
+  // The UNSAFE segment must be contiguous and in the middle of the ride.
   const seq = points.map((p) => p.condition).join(',');
-  assert.match(seq, /^GOOD(,GOOD)*(,BAD)+(,GOOD)+$/, `segments look right: ${seq}`);
+  assert.match(seq, /^SAFE(,SAFE)*(,UNSAFE)+(,SAFE)+$/, `segments look right: ${seq}`);
 
   console.log('6b. Map view shows the recorded track');
   await page.click('#rides-panel summary');
@@ -141,7 +141,7 @@ async function main() {
     { timeout: 10000 }
   );
   const mapStats = await page.textContent('#map-stats');
-  assert.ok(/GOOD \d+ \/ BAD \d+/.test(mapStats), `map stats show condition split: ${mapStats}`);
+  assert.ok(/SAFE \d+ \/ UNSAFE \d+/.test(mapStats), `map stats show condition split: ${mapStats}`);
   const canvasPainted = await page.evaluate(() => {
     const c = document.getElementById('map-canvas');
     return c.width > 0 && c.height > 0;

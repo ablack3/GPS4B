@@ -2,7 +2,7 @@
  * GPS4B v0.1 — web app.
  *
  * The browser counterpart of the native mobile app: record GPS points during
- * an explicitly started ride, tag the current portion GOOD or BAD, store
+ * an explicitly started ride, tag the current portion SAFE or UNSAFE, store
  * everything locally first (IndexedDB), then sync completed rides to a GPS4B
  * server — or export them as JSON/CSV.
  *
@@ -135,7 +135,7 @@ async function startRide() {
     id: `ride_${crypto.randomUUID()}`,
     started_at: now,
     ended_at: null,
-    current_condition: 'GOOD',
+    current_condition: 'SAFE',
     sync_status: 'LOCAL',
     created_at: now,
   };
@@ -533,9 +533,9 @@ function showError(message) {
 }
 
 function renderCondition() {
-  const condition = activeRide?.current_condition ?? 'GOOD';
-  $('btn-good').classList.toggle('active', condition === 'GOOD');
-  $('btn-bad').classList.toggle('active', condition === 'BAD');
+  const condition = activeRide?.current_condition ?? 'SAFE';
+  $('btn-safe').classList.toggle('active', condition === 'SAFE');
+  $('btn-unsafe').classList.toggle('active', condition === 'UNSAFE');
 }
 
 function renderRecordingState() {
@@ -650,8 +650,8 @@ async function main() {
     }
   };
 
-  $('btn-good').onclick = () => setCondition('GOOD');
-  $('btn-bad').onclick = () => setCondition('BAD');
+  $('btn-safe').onclick = () => setCondition('SAFE');
+  $('btn-unsafe').onclick = () => setCondition('UNSAFE');
 
   $('keep-awake-toggle').checked = keepAwakeEnabled();
   $('keep-awake-toggle').onchange = (e) => setKeepAwakeEnabled(e.target.checked);

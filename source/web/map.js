@@ -3,7 +3,7 @@
  *
  * Draws a ride's recorded GPS points over OpenStreetMap raster tiles
  * (Web Mercator math done by hand — no map library), with the track colored
- * by the rider-reported condition: green for GOOD, red for BAD. When tiles
+ * by the rider-reported condition: green for SAFE, red for UNSAFE. When tiles
  * can't load (offline, or a host that blocks external requests) the track is
  * drawn over a plain grid instead, which is still enough to judge the shape
  * and continuity of the recording.
@@ -14,7 +14,7 @@ const GPS4BMap = (() => {
   const TILE_SIZE = 256;
   const MAX_ZOOM = 17;
   const TILE_TIMEOUT_MS = 5000;
-  const COLORS = { GOOD: '#2e7d32', BAD: '#c62828' };
+  const COLORS = { SAFE: '#2e7d32', UNSAFE: '#c62828' };
 
   const tileUrl = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 
@@ -45,7 +45,7 @@ const GPS4BMap = (() => {
   function computeStats(points) {
     let meters = 0;
     for (let i = 1; i < points.length; i++) meters += haversineMeters(points[i - 1], points[i]);
-    const bad = points.filter((p) => p.condition === 'BAD').length;
+    const bad = points.filter((p) => p.condition === 'UNSAFE').length;
     const accuracies = points
       .map((p) => p.accuracy)
       .filter((a) => typeof a === 'number')
@@ -70,7 +70,7 @@ const GPS4BMap = (() => {
       const m = Math.floor(s.seconds / 60);
       parts.push(m >= 1 ? `${m} min` : `${Math.round(s.seconds)} s`);
     }
-    if (s.count > 0) parts.push(`GOOD ${s.good} / BAD ${s.bad}`);
+    if (s.count > 0) parts.push(`SAFE ${s.good} / UNSAFE ${s.bad}`);
     if (s.medianAccuracy != null) parts.push(`±${Math.round(s.medianAccuracy)} m accuracy`);
     return parts.join(' · ');
   }

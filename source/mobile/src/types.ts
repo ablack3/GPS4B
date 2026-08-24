@@ -1,5 +1,5 @@
 /** Rider-reported condition of the current portion of the ride. */
-export type Condition = 'GOOD' | 'BAD';
+export type Condition = 'SAFE' | 'UNSAFE';
 
 /** Lifecycle of a ride with respect to the backend. */
 export type SyncStatus = 'LOCAL' | 'PENDING' | 'UPLOADING' | 'SYNCED';

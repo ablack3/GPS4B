@@ -5,7 +5,7 @@
  * problems; an empty list means the payload is acceptable.
  */
 
-const CONDITIONS = new Set(['GOOD', 'BAD']);
+const CONDITIONS = new Set(['SAFE', 'UNSAFE']);
 const MAX_ID_LENGTH = 128;
 const MAX_POINTS = 200_000; // ~ several days of riding at 5s intervals
 
@@ -85,7 +85,7 @@ function validatePoint(point) {
     errors.push('longitude must be a number between -180 and 180');
   }
   if (!CONDITIONS.has(point.condition)) {
-    errors.push('condition must be GOOD or BAD');
+    errors.push('condition must be SAFE or UNSAFE');
   }
   for (const field of ['accuracy', 'altitude', 'speed', 'heading']) {
     if (!isOptionalFiniteNumber(point[field])) {
