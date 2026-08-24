@@ -112,7 +112,7 @@ curl -X POST https://gps4b.example.org/rides \
   -d '{"ride_id":"ride_smoke_test","started_at":"2026-08-22T16:00:00Z",
        "ended_at":"2026-08-22T16:01:00Z",
        "points":[{"timestamp":"2026-08-22T16:00:05Z","latitude":42.36,
-                  "longitude":-71.06,"condition":"GOOD"}]}'
+                  "longitude":-71.06,"condition":"SAFE"}]}'
 # {"status":"stored","ride_id":"ride_smoke_test","point_count":1}
 
 curl https://gps4b.example.org/rides/ride_smoke_test   # read it back
@@ -282,7 +282,7 @@ branch. If the site ever 404s, check the repo's **Settings → Pages** and set
 Source to *Deploy from a branch* → `gh-pages` → `/ (root)` (a one-time
 setting; the workflow keeps the branch updated after that).
 
-The web app implements the same v0.1 flow: START RIDE → GOOD/BAD → STOP
+The web app implements the same v0.1 flow: START RIDE → SAFE/UNSAFE → STOP
 RIDE, browser geolocation sampled at the configured interval
 (`?interval=<ms>` overrides the 5 s default), offline-first storage in
 IndexedDB, a retryable sync queue that uploads to any GPS4B server URL you
