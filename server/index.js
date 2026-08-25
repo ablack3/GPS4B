@@ -5,6 +5,8 @@
  *
  *   POST /rides      — accept a completed ride with its GPS observations
  *   GET  /rides/:id  — read a stored ride back (verification/debugging)
+ *   POST /hazards    — accept a rider-reported permanent-infrastructure hazard
+ *   GET  /hazards    — read hazards back, optionally filtered to a bbox
  *   GET  /health     — liveness + database connectivity check
  *
  * Uploads are idempotent on ride_id: re-sending a ride that was already
@@ -19,6 +21,7 @@ import express from 'express';
 import pg from 'pg';
 
 import { validateRidePayload } from './validate.js';
+import { validateHazardPayload } from './validate-hazard.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const DATABASE_URL =
@@ -66,6 +69,18 @@ app.use((req, res, next) => {
   res.set('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
+});
+
+// Lets the mobile/web app pick up a new geocoding/routing/basemap endpoint
+// without a release — required by the OSM Nominatim usage policy, and the
+// mechanism for moving off public dev servers onto GPS4B's own once deployed.
+app.get('/config', (_req, res) => {
+  res.json({
+    geocodeUrl: process.env.GEOCODE_URL,
+    geocodeApiKey: process.env.GEOCODE_API_KEY,
+    routingUrl: process.env.ROUTING_URL,
+    mapStyleUrl: process.env.MAP_STYLE_URL,
+  });
 });
 
 app.get('/health', async (_req, res) => {
@@ -175,6 +190,65 @@ app.get('/rides/:id', async (req, res) => {
     res.json({ ...ride.rows[0], points: points.rows });
   } catch (err) {
     console.error('Failed to read ride', req.params.id, err);
+    res.status(500).json({ error: 'read_failed' });
+  }
+});
+
+app.post('/hazards', async (req, res) => {
+  const errors = validateHazardPayload(req.body);
+  if (errors.length > 0) {
+    return res.status(400).json({ error: 'invalid_payload', details: errors });
+  }
+
+  const { id, ride_id, timestamp, latitude, longitude, type } = req.body;
+
+  try {
+    const inserted = await pool.query(
+      `INSERT INTO hazard_reports (id, ride_id, "timestamp", latitude, longitude, type)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO NOTHING
+       RETURNING id`,
+      [id, ride_id ?? null, timestamp, latitude, longitude, type]
+    );
+    if (inserted.rowCount === 0) {
+      return res.status(200).json({ status: 'already_synced', id });
+    }
+    res.status(201).json({ status: 'stored', id });
+  } catch (err) {
+    console.error('Failed to store hazard report', id, err);
+    res.status(500).json({ error: 'storage_failed' });
+  }
+});
+
+// bbox = minLon,minLat,maxLon,maxLat — matches the convention used by OSM
+// routing/geocoding APIs, so the mobile app can reuse the same viewport
+// value it already computes for the map.
+app.get('/hazards', async (req, res) => {
+  const { bbox } = req.query;
+  try {
+    if (bbox === undefined) {
+      const all = await pool.query(
+        `SELECT id, ride_id, "timestamp", latitude, longitude, type
+         FROM hazard_reports ORDER BY "timestamp" DESC LIMIT 10000`
+      );
+      return res.json({ hazards: all.rows });
+    }
+
+    const parts = String(bbox).split(',').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+      return res.status(400).json({ error: 'invalid_bbox' });
+    }
+    const [minLon, minLat, maxLon, maxLat] = parts;
+    const inBbox = await pool.query(
+      `SELECT id, ride_id, "timestamp", latitude, longitude, type
+       FROM hazard_reports
+       WHERE longitude BETWEEN $1 AND $3 AND latitude BETWEEN $2 AND $4
+       ORDER BY "timestamp" DESC LIMIT 10000`,
+      [minLon, minLat, maxLon, maxLat]
+    );
+    res.json({ hazards: inBbox.rows });
+  } catch (err) {
+    console.error('Failed to read hazards', err);
     res.status(500).json({ error: 'read_failed' });
   }
 });

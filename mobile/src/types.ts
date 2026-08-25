@@ -25,3 +25,21 @@ export interface LocationPoint {
   heading: number | null;
   condition: Condition;
 }
+
+/**
+ * Permanent-infrastructure defect a rider flags at a point in time, distinct
+ * from Condition: a HazardReport is discrete and describes the place, not
+ * the ride. Deliberately excludes temporary hazards (double-parked cars,
+ * debris) — those need an expiry model this version doesn't have.
+ */
+export type HazardType = 'LANE_GAP' | 'ROUGH_PAVEMENT' | 'BAD_INTERSECTION';
+
+export interface HazardReport {
+  id: string;
+  ride_id: string | null;
+  timestamp: string; // ISO 8601
+  latitude: number;
+  longitude: number;
+  type: HazardType;
+  sync_status: SyncStatus;
+}

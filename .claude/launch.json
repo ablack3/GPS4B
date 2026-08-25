@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gps4b-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "web", "-p", "8080", "-s"],
+      "port": 8080
+    }
+  ]
+}

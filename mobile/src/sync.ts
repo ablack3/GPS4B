@@ -10,9 +10,11 @@ import * as Network from 'expo-network';
 
 import { CONFIG } from './config';
 import {
+  getHazardReportsToSync,
   getOrCreateUserId,
   getRidePoints,
   getRidesToSync,
+  setHazardReportSyncStatus,
   setRideSyncStatus,
 } from './db';
 
@@ -23,12 +25,27 @@ export async function syncPendingRides(): Promise<void> {
   syncInFlight = true;
   try {
     const rides = getRidesToSync();
-    if (rides.length === 0) return;
+    const hazards = getHazardReportsToSync();
+    if (rides.length === 0 && hazards.length === 0) return;
 
     const network = await Network.getNetworkStateAsync();
     if (!network.isConnected) return;
 
     const userId = getOrCreateUserId();
+
+    for (const hazard of hazards) {
+      setHazardReportSyncStatus(hazard.id, 'UPLOADING');
+      try {
+        const response = await fetch(`${CONFIG.apiUrl}/hazards`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(hazard),
+        });
+        setHazardReportSyncStatus(hazard.id, response.ok ? 'SYNCED' : 'PENDING');
+      } catch {
+        setHazardReportSyncStatus(hazard.id, 'PENDING');
+      }
+    }
 
     for (const ride of rides) {
       setRideSyncStatus(ride.id, 'UPLOADING');

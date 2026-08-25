@@ -11,7 +11,7 @@
 import * as Crypto from 'expo-crypto';
 import * as SQLite from 'expo-sqlite';
 
-import type { Condition, LocationPoint, Ride, SyncStatus } from './types';
+import type { Condition, HazardReport, HazardType, LocationPoint, Ride, SyncStatus } from './types';
 
 const db = SQLite.openDatabaseSync('gps4b.db');
 
@@ -48,6 +48,16 @@ function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_location_points_ride
       ON location_points (ride_id, timestamp);
+
+    CREATE TABLE IF NOT EXISTS hazard_reports (
+      id TEXT PRIMARY KEY,
+      ride_id TEXT,
+      timestamp TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      type TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'PENDING'
+    );
   `);
 }
 
@@ -187,4 +197,47 @@ export function resetInterruptedUploads(): void {
   db.runSync(
     "UPDATE rides SET sync_status = 'PENDING' WHERE sync_status = 'UPLOADING'"
   );
+  db.runSync(
+    "UPDATE hazard_reports SET sync_status = 'PENDING' WHERE sync_status = 'UPLOADING'"
+  );
+}
+
+/** Record a rider-flagged permanent hazard at a point. One-shot, immutable. */
+export function createHazardReport(
+  rideId: string | null,
+  type: HazardType,
+  latitude: number,
+  longitude: number
+): HazardReport {
+  const report: HazardReport = {
+    id: `hazard_${Crypto.randomUUID()}`,
+    ride_id: rideId,
+    timestamp: new Date().toISOString(),
+    latitude,
+    longitude,
+    type,
+    sync_status: 'PENDING',
+  };
+  db.runSync(
+    `INSERT INTO hazard_reports (id, ride_id, timestamp, latitude, longitude, type, sync_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    report.id,
+    report.ride_id,
+    report.timestamp,
+    report.latitude,
+    report.longitude,
+    report.type,
+    report.sync_status
+  );
+  return report;
+}
+
+export function getHazardReportsToSync(): HazardReport[] {
+  return db.getAllSync<HazardReport>(
+    "SELECT * FROM hazard_reports WHERE sync_status IN ('PENDING', 'UPLOADING') ORDER BY timestamp ASC"
+  );
+}
+
+export function setHazardReportSyncStatus(id: string, status: SyncStatus): void {
+  db.runSync('UPDATE hazard_reports SET sync_status = ? WHERE id = ?', status, id);
 }

@@ -194,16 +194,35 @@ through record → annotate → store → sync → database.
 
 #### Mobile app (`mobile/`)
 
-A single-screen app:
+v0.2 made the map the main screen — search a destination, get a bike route,
+and start recording, all from one view (mobile and web both):
 
+- **Map** — MapLibre (native) / MapLibre GL JS (web), OSM basemap via
+  [OpenFreeMap](https://openfreemap.org/) (no API key, no quota).
+- **Search** — a destination search bar, geocoded via OpenRouteService.
+  Deliberately not autocomplete-on-keystroke: it debounces and queries on a
+  pause in typing, per [Nominatim's usage
+  policy](https://operations.osmfoundation.org/policies/nominatim/), which
+  the ORS geocoder inherits (same OSM-derived data, same norm).
+- **Route** — stock bike routing via [Valhalla](https://valhalla.github.io/valhalla/)
+  (`bicycle` costing). Not yet weighted by GPS4B's own safety data — see
+  "What's next" below.
 - **START RIDE** — creates a ride (unique `ride_id`, start timestamp, default
   condition `SAFE`), requests location permissions, and starts background GPS
-  collection.
+  collection. Selecting a destination and pressing **START NAVIGATION** does
+  the same, with a visible "Contribute this ride's data" switch so recording
+  is opt-out, not silent.
 - **SAFE / UNSAFE** — toggles the ride's current condition. Every GPS point
   inherits the condition active when it is recorded, which yields
   segment-level information without per-point annotation.
+- **Hazard buttons** — Lane Gap / Rough Pavement / Bad Intersection: a
+  one-tap, glove-operable report of a *permanent* infrastructure defect at
+  the rider's current location. Deliberately excludes temporary hazards
+  (double-parked cars, debris) — those need an expiry model this version
+  doesn't have. See `HazardReport` in `mobile/src/types.ts` — it's a
+  separate, discrete concept from Condition, which is continuous.
 - **STOP RIDE** — stops GPS collection, records the end timestamp, marks the
-  ride complete, and queues it for upload.
+  ride complete, and queues it for upload (rides and hazard reports both).
 
 Key implementation points:
 
@@ -235,11 +254,35 @@ A deliberately small Express app backed by PostgreSQL + PostGIS:
   mobile app can retry freely.
 - `GET /rides/:id` — returns the ride and its ordered points (verification /
   debugging).
+- `POST /hazards` / `GET /hazards?bbox=minLon,minLat,maxLon,maxLat` — store
+  and read back rider-reported hazards (see mobile app section above).
+- `GET /config` — lets the mobile/web app pick up a new geocoding, routing,
+  or basemap-style URL without a release, by setting `GEOCODE_URL`,
+  `GEOCODE_API_KEY`, `ROUTING_URL`, or `MAP_STYLE_URL` on the server and
+  restarting it. Required by the Nominatim usage policy; also the mechanism
+  for moving off public dev routing/geocoding servers onto GPS4B's own once
+  one exists (none is deployed yet — see "What's next").
 - `GET /health` — liveness + database connectivity.
 
 The schema (`server/schema.sql`) preserves raw observations immutably and
 adds a generated PostGIS `geometry(Point, 4326)` column plus a GiST index so
-later geospatial analysis (map matching, segment scoring) is easy.
+later geospatial analysis (map matching, segment scoring) is easy. The same
+applies to `hazard_reports`.
+
+### What's next (not built yet)
+
+- **A production geocoding/routing backend.** The app currently defaults to
+  public OSM community dev servers (`valhalla1.openstreetmap.de`,
+  `api.openrouteservice.org`) that explicitly forbid production/commercial
+  load — fine for development, not for real users. Before a real launch,
+  either self-host Valhalla + apply for OpenRouteService's nonprofit
+  "Collaborative" plan, and point `GET /config` at them.
+- **Safety-weighted routing.** Routes are stock bike routing today; hazards
+  and UNSAFE segments are collected but don't yet influence the route.
+  Valhalla's `linear_cost_factors` (per-segment cost multipliers, matched
+  onto OSM edges at request time) is the mechanism earmarked for this — no
+  re-platforming needed, just a new request parameter once there's enough
+  data to weight with.
 
 ### Running the backend
 

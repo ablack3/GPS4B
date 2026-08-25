@@ -16,8 +16,31 @@ const CONFIG = {
   gpsIntervalMs: 5000, // target: one observation every 3–10 s
   syncIntervalMs: 60_000,
   dbName: 'gps4b',
-  dbVersion: 1,
+  dbVersion: 2,
+  // Navigation defaults — public OSM community dev servers, overridden at
+  // startup by GET /config on the GPS4B server. See mobile/src/config.ts for
+  // why this is remote-configurable rather than hardcoded (Nominatim policy).
+  geocodeUrl: 'https://api.openrouteservice.org/geocode/search',
+  geocodeApiKey: '',
+  routingUrl: 'https://valhalla1.openstreetmap.de/route',
+  routingClientId: 'org.gps4b.app (web, dev)',
+  mapStyleUrl: 'https://tiles.openfreemap.org/styles/liberty',
 };
+
+async function fetchRemoteConfig() {
+  const serverUrl = getServerUrl();
+  if (!serverUrl) return;
+  try {
+    const response = await fetch(`${serverUrl}/config`);
+    if (!response.ok) return;
+    const remote = await response.json();
+    for (const [key, value] of Object.entries(remote)) {
+      if (value !== undefined && value !== null) CONFIG[key] = value;
+    }
+  } catch {
+    /* offline or unreachable — keep defaults */
+  }
+}
 
 // The sampling frequency is configurable (spec §8): ?interval=<ms> overrides
 // the default, e.g. gps4b.example.org/?interval=10000 for one point per 10 s.
@@ -47,6 +70,9 @@ function openDb() {
           autoIncrement: true,
         });
         points.createIndex('ride_id', 'ride_id');
+      }
+      if (!db.objectStoreNames.contains('hazards')) {
+        db.createObjectStore('hazards', { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -88,6 +114,11 @@ const store = {
     tx(['points'], 'readonly', (t) =>
       reqValue(t.objectStore('points').index('ride_id').count(rideId), {})
     ),
+  putHazard: (hazard) => tx(['hazards'], 'readwrite', (t) => ({ __value: t.objectStore('hazards').put(hazard) && undefined })),
+  getHazardsToSync: () =>
+    tx(['hazards'], 'readonly', (t) =>
+      reqValue(t.objectStore('hazards').getAll(), {})
+    ).then((all) => (all || []).filter((h) => h.sync_status === 'PENDING' || h.sync_status === 'UPLOADING')),
   deleteRide: (rideId) =>
     tx(['rides', 'points'], 'readwrite', (t) => {
       t.objectStore('rides').delete(rideId);
@@ -336,6 +367,26 @@ async function onPosition(position) {
   refreshPointCount();
 }
 
+/**
+ * Record a rider-flagged permanent hazard (lane gap, rough pavement, bad
+ * intersection) at a point — distinct from Condition, see HazardReport in
+ * mobile/src/types.ts for the reasoning.
+ */
+async function reportHazard(type, latitude, longitude) {
+  const hazard = {
+    id: `hazard_${crypto.randomUUID()}`,
+    ride_id: activeRide ? activeRide.id : null,
+    timestamp: new Date().toISOString(),
+    latitude,
+    longitude,
+    type,
+    sync_status: 'PENDING',
+  };
+  await store.putHazard(hazard);
+  syncPendingRides();
+  return hazard;
+}
+
 async function setCondition(condition) {
   if (!activeRide) return;
   activeRide.current_condition = condition;
@@ -558,6 +609,22 @@ async function syncPendingRides() {
       (r) => r.ended_at && (r.sync_status === 'PENDING' || r.sync_status === 'UPLOADING')
     );
 
+    for (const hazard of (await store.getHazardsToSync()) || []) {
+      hazard.sync_status = 'UPLOADING';
+      await store.putHazard(hazard);
+      try {
+        const response = await fetch(`${serverUrl}/hazards`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(hazard),
+        });
+        hazard.sync_status = response.ok ? 'SYNCED' : 'PENDING';
+      } catch {
+        hazard.sync_status = 'PENDING';
+      }
+      await store.putHazard(hazard);
+    }
+
     for (const ride of rides) {
       ride.sync_status = 'UPLOADING';
       await store.putRide(ride);
@@ -677,6 +744,7 @@ function renderRecordingState() {
   refreshPointCount();
   refreshStatusLine();
   renderWakeStatus();
+  if (window.GPS4BNav) window.GPS4BNav.syncControlsFromRide();
 }
 
 async function refreshPointCount() {
@@ -819,6 +887,7 @@ async function main() {
   await resumeActiveRideIfAny();
   renderRecordingState();
   renderRidesList();
+  fetchRemoteConfig();
 
   // Sync triggers: on load, when connectivity returns, periodically.
   syncPendingRides();
@@ -840,6 +909,10 @@ window.GPS4B = {
   getServerUrl,
   setServerUrl,
   syncPendingRides,
+  startRide,
+  stopRide,
+  setCondition,
+  reportHazard,
   getActiveRide: () => activeRide,
   config: CONFIG,
 };

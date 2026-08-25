@@ -3,6 +3,28 @@
 Expo (React Native) app, one codebase for iOS and Android. See
 [App.tsx](App.tsx) and [src/](src) for the app itself.
 
+## v0.2: map navigation
+
+The map is now the main screen — search a destination, get a bike route
+(MapLibre + OpenFreeMap basemap, OpenRouteService geocoding, Valhalla
+routing), with SAFE/UNSAFE and hazard-report buttons (Lane Gap, Rough
+Pavement, Bad Intersection) overlaid on it. See the root
+[README.md](../README.md#mobile-app-mobile) for the full feature
+description, and `mobile/src/routing.ts` / `mobile/src/config.ts` for the
+implementation. Because MapLibre uses native modules, `npx expo start` in
+Expo Go will not render the map — use a development build
+(`npx expo run:ios` / `npx expo run:android`, or `eas build --profile
+development`), same requirement background location already had.
+
+The default geocoding/routing endpoints are public OSM community dev
+servers, chosen for zero setup cost during development — they explicitly
+disallow production or commercial traffic, and using them at any scale risks
+GPS4B's own access being rate-limited or blocked. Do not ship a store build
+against the defaults; see "What's next" in the root README for what a
+production backend requires, and point `GET /config` on the GPS4B server at
+it (`GEOCODE_URL`, `GEOCODE_API_KEY`, `ROUTING_URL`, `MAP_STYLE_URL`
+environment variables) before submitting.
+
 ## Installing GPS4B on your phone
 
 No app store needed — download the build from GitHub and install it

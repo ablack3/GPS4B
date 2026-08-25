@@ -10,3 +10,10 @@ ALTER TABLE location_points
 
 CREATE INDEX IF NOT EXISTS idx_location_points_geom
     ON location_points USING gist (geom);
+
+ALTER TABLE hazard_reports
+    ADD COLUMN IF NOT EXISTS geom geometry(Point, 4326)
+        GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_hazard_reports_geom
+    ON hazard_reports USING gist (geom);

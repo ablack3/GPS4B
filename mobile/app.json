@@ -40,7 +40,8 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "@maplibre/maplibre-react-native"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
