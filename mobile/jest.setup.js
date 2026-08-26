@@ -9,3 +9,13 @@ jest.mock('@maplibre/maplibre-react-native', () => ({
   Marker: 'Marker',
   UserLocation: 'UserLocation',
 }));
+
+// Ferrostar's binding is a compiled Rust module vendored per-platform
+// (mobile/vendor/README.md); it does not exist under Node. Stubbing it keeps
+// the startup smoke check quiet in unit tests — describeFerrostarNative's own
+// tests inject their loader, so this stub never stands in for that coverage.
+jest.mock(
+  '@stadiamaps/ferrostar-uniffi-react-native',
+  () => ({ NavigationController: 'NavigationController', RouteAdapter: 'RouteAdapter' }),
+  { virtual: true }
+);

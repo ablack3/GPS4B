@@ -25,6 +25,7 @@ import {
 import { GuidanceBanner } from './src/GuidanceBanner';
 import { CONFIG, fetchRemoteConfig } from './src/config';
 import { createHazardReport, getActiveRide, getRidesToSync, resetInterruptedUploads } from './src/db';
+import { logFerrostarNativeStatus } from './src/ferrostar-native';
 import { createGuidance } from './src/guidance-provider';
 import { endNavigationSession, startNavigationSession } from './src/navigation-session';
 import { changeCondition, startRide, stopRide } from './src/ride';
@@ -84,6 +85,9 @@ export default function App() {
     resetInterruptedUploads();
     fetchRemoteConfig().finally(refreshStatus);
     syncPendingRides().finally(refreshStatus);
+    // Build-pipeline smoke check: says in the log whether the vendored
+    // Ferrostar binary made it into this build. Nothing depends on it yet.
+    logFerrostarNativeStatus();
   }, [refreshStatus]);
 
   useEffect(() => {

@@ -1,0 +1,7 @@
+# Compiled Rust output. Marking it binary keeps it out of diffs and merges —
+# these files are regenerated wholesale by vendor/build-ferrostar.sh, never
+# edited or merged.
+*.so binary
+*.a binary
+*.dylib binary
+FerrostarRN.xcframework/** binary
