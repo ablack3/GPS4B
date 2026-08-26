@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2e7d32" />
+  <title>GPS4B</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.png" />
+  <link rel="apple-touch-icon" href="./icon.png" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center;
+      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    }
+    main { width: 100%; max-width: 480px; display: flex; flex-direction: column; flex: 1; }
+    h1 { font-size: 2rem; font-weight: 800; letter-spacing: 3px; text-align: center; margin: 28px 0 4px; }
+    .subtitle { text-align: center; color: #777; font-size: 0.85rem; margin-bottom: 12px; }
+
+    .screen-warning {
+      display: none; background: #fff3cd; border: 1px solid #ffe08a; color: #6b5300;
+      border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; margin: 8px 0;
+    }
+    body.recording .screen-warning { display: block; }
+
+    .location-banner {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: #fdecea; border: 1px solid #f5b5ad; color: #8a2c22;
+      border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; margin: 8px 0;
+    }
+    .location-banner button {
+      flex-shrink: 0; font-size: 0.78rem; padding: 6px 12px; border-radius: 8px;
+      border: 1px solid #c0392b; background: #fff; color: #c0392b; cursor: pointer;
+    }
+    .text-link {
+      background: none; border: none; color: #2e7d32; font-size: 0.82rem;
+      text-decoration: underline; cursor: pointer; padding: 4px 0; text-align: center;
+    }
+    #location-help-panel {
+      margin-top: 18px; background: #fff; border: 1px solid #ddd;
+      border-radius: 12px; padding: 14px 16px;
+    }
+    #location-help-title { font-weight: 600; margin-bottom: 10px; }
+    #location-help-text ol { margin: 0 0 4px 1.2rem; padding: 0; }
+    #location-help-text li { margin-bottom: 6px; font-size: 0.88rem; line-height: 1.4; }
+    #location-help-text p { font-size: 0.85rem; color: #555; margin-bottom: 8px; }
+
+    #controls { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+
+    .recording-row { display: none; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
+    body.recording .recording-row { display: flex; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: #d32f2f; animation: pulse 1.4s infinite; }
+    @keyframes pulse { 50% { opacity: 0.35; } }
+    .recording-row span { font-size: 1.3rem; font-weight: 600; }
+    #point-count { display: none; text-align: center; color: #555; }
+    body.recording #point-count { display: block; }
+    #wake-status { display: none; text-align: center; color: #2e7d32; font-size: 0.85rem; }
+    body.recording #wake-status { display: block; }
+    #wake-status.wake-warning { color: #b26a00; }
+    .wake-toggle {
+      display: none; align-items: center; justify-content: center; gap: 8px;
+      color: #555; font-size: 0.9rem; cursor: pointer; user-select: none;
+    }
+    body.recording .wake-toggle { display: flex; }
+    .wake-toggle input { width: 20px; height: 20px; accent-color: #2e7d32; cursor: pointer; }
+
+    .section-label { display: none; text-align: center; color: #333; font-size: 1rem; margin-top: 10px; }
+    body.recording .section-label { display: block; }
+    .condition-row { display: none; gap: 14px; }
+    body.recording .condition-row { display: flex; }
+    .condition-row button {
+      flex: 1; padding: 26px 0; font-size: 1.4rem; font-weight: 700; color: #444;
+      background: #fff; border: 2px solid #bbb; border-radius: 16px; cursor: pointer;
+    }
+    #btn-safe.active { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+    #btn-unsafe.active  { background: #c62828; border-color: #c62828; color: #fff; }
+
+    .big-btn {
+      width: 100%; padding: 28px 0; border: none; border-radius: 20px; cursor: pointer;
+      font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; color: #fff; margin-top: 18px;
+    }
+    #btn-start { background: #2e7d32; display: block; }
+    #btn-stop  { background: #c62828; display: none; }
+    body.recording #btn-start { display: none; }
+    body.recording #btn-stop  { display: block; }
+    .big-btn:disabled { opacity: 0.6; }
+
+    #status-line { text-align: center; color: #777; font-size: 0.9rem; margin-top: 14px; min-height: 1.2em; }
+    #error-line { text-align: center; color: #c62828; font-size: 0.9rem; margin-top: 6px; min-height: 1.2em; }
+
+    #map-panel {
+      margin-top: 18px; background: #fff; border: 1px solid #ddd;
+      border-radius: 12px; padding: 12px 14px;
+    }
+    #map-title { font-weight: 600; margin-bottom: 8px; }
+    #map-canvas {
+      width: 100%; height: 340px; display: block; border-radius: 8px;
+      background: #eef1ee; touch-action: none;
+    }
+    #map-stats { color: #555; font-size: 0.85rem; margin-top: 8px; text-align: center; }
+    #map-note { color: #b26a00; font-size: 0.78rem; margin-top: 4px; text-align: center; }
+    .map-footer {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 8px;
+    }
+    #map-attribution { color: #888; font-size: 0.72rem; }
+    #map-attribution a { color: inherit; }
+    #map-close {
+      font-size: 0.85rem; padding: 6px 14px; border-radius: 8px;
+      border: 1px solid #bbb; background: #fafafa; cursor: pointer;
+    }
+    #btn-show-map {
+      display: none; margin: 0 auto; font-size: 0.9rem; padding: 8px 18px;
+      border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; color: #333;
+    }
+    body.recording #btn-show-map { display: block; }
+    details { margin-top: 22px; background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 12px 14px; }
+    details summary { cursor: pointer; font-weight: 600; color: #333; }
+    .ride-item { border-top: 1px solid #eee; padding: 10px 0; font-size: 0.85rem; }
+    .ride-item .meta { color: #555; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 8px; font-size: 0.72rem; font-weight: 700; color: #fff; }
+    .badge.SYNCED { background: #2e7d32; }
+    .badge.PENDING, .badge.UPLOADING { background: #ef6c00; }
+    .badge.LOCAL { background: #757575; }
+    .ride-actions { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .ride-actions button, .settings-row button {
+      font-size: 0.78rem; padding: 5px 10px; border-radius: 8px; border: 1px solid #bbb;
+      background: #fafafa; cursor: pointer;
+    }
+    .settings-row { display: flex; gap: 8px; margin-top: 10px; }
+    .settings-row input {
+      flex: 1; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; font-size: 0.85rem;
+    }
+    .hint { color: #888; font-size: 0.78rem; margin-top: 8px; line-height: 1.45; }
+    footer { margin: 26px 0 16px; color: #aaa; font-size: 0.75rem; text-align: center; }
+
+    #btn-open-nav {
+      margin: 4px auto 0; display: block; font-size: 0.9rem; padding: 8px 18px;
+      border-radius: 10px; border: 1px solid #2e7d32; background: #fff; color: #2e7d32; cursor: pointer;
+    }
+    #nav-overlay { position: fixed; inset: 0; background: #000; z-index: 1000; }
+    #nav-map { position: absolute; inset: 0; }
+    .nav-search-bar {
+      position: absolute; top: max(16px, env(safe-area-inset-top)); left: 16px; right: 16px;
+      display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 14px;
+      padding: 0 14px; height: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .nav-search-bar input { flex: 1; border: none; outline: none; font-size: 1rem; }
+    .nav-search-bar button { border: none; background: none; font-size: 1.4rem; color: #888; cursor: pointer; }
+    #nav-results {
+      position: absolute; top: 74px; left: 16px; right: 16px; background: #fff; border-radius: 14px;
+      overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .nav-result-row { padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 0.92rem; }
+    #nav-route-summary {
+      position: absolute; bottom: 200px; left: 16px; right: 16px; background: #fff; border-radius: 14px;
+      padding: 12px 16px; font-weight: 700; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .nav-bottom-overlay {
+      position: absolute; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.97);
+      padding: 16px 16px max(24px, env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .nav-hazard-row:not([hidden]) { display: flex; gap: 8px; }
+    .nav-hazard-row button {
+      flex: 1; padding: 14px 4px; border-radius: 12px; background: #fff3e0; border: 2px solid #f57c00;
+      color: #e65100; font-weight: 700; font-size: 0.78rem; cursor: pointer;
+    }
+    .nav-hazard-row button.flash { background: #f57c00; color: #fff; }
+    .nav-recording-row:not([hidden]) { display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .nav-condition-row:not([hidden]) { display: flex; gap: 10px; }
+    .nav-condition-row button {
+      flex: 1; padding: 16px 0; font-size: 1.1rem; font-weight: 700; color: #444;
+      background: #fff; border: 2px solid #bbb; border-radius: 14px; cursor: pointer;
+    }
+    #nav-btn-safe.active { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+    #nav-btn-unsafe.active { background: #c62828; border-color: #c62828; color: #fff; }
+    .nav-big-btn {
+      width: 100%; padding: 20px 0; border: none; border-radius: 16px; cursor: pointer;
+      font-size: 1.2rem; font-weight: 800; color: #fff;
+    }
+    #nav-btn-start, #nav-btn-start-nav { background: #2e7d32; }
+    #nav-btn-stop { background: #c62828; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GPS4B</h1>
+    <div class="subtitle">bicycle ride data collection</div>
+
+    <div class="screen-warning">
+      GPS4B keeps the screen on while recording, like a navigation app.
+      Keep this page open — don't press the power button or switch apps,
+      because web browsers stop GPS when the page is hidden. (The native app
+      records even with the screen locked.)
+    </div>
+
+    <div id="location-banner" class="location-banner" hidden>
+      <span>⚠️ Location access is blocked for this site.</span>
+      <button id="btn-location-help">How to enable it</button>
+    </div>
+
+    <button id="btn-open-nav">🗺️ Navigate — search a destination &amp; get a bike route</button>
+
+    <div id="controls">
+      <div class="recording-row"><div class="dot"></div><span>Ride: Recording</span></div>
+      <div id="point-count">0 GPS points recorded</div>
+      <div id="wake-status"></div>
+      <label class="wake-toggle">
+        <input type="checkbox" id="keep-awake-toggle" checked />
+        Keep screen on
+      </label>
+      <button id="btn-show-map">Show live track</button>
+
+      <div class="section-label">Current condition</div>
+      <div class="condition-row">
+        <button id="btn-safe" class="active">SAFE</button>
+        <button id="btn-unsafe">UNSAFE</button>
+      </div>
+
+      <button id="btn-start" class="big-btn">START RIDE</button>
+      <button id="btn-stop" class="big-btn">STOP RIDE</button>
+
+      <div id="status-line"></div>
+      <div id="error-line"></div>
+      <button id="btn-location-help-link" class="text-link">
+        Location not working? Show me how to enable it
+      </button>
+    </div>
+
+    <div id="map-panel" hidden>
+      <div id="map-title"></div>
+      <canvas id="map-canvas"></canvas>
+      <div id="map-stats"></div>
+      <div id="map-note"></div>
+      <div class="map-footer">
+        <span id="map-attribution" hidden>
+          ©&nbsp;<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors
+        </span>
+        <button id="map-close">Close map</button>
+      </div>
+    </div>
+
+    <div id="location-help-panel" hidden>
+      <div id="location-help-title">Enabling location access</div>
+      <div id="location-help-text"></div>
+      <div class="map-footer">
+        <span></span>
+        <button id="location-help-close">Close</button>
+      </div>
+    </div>
+
+    <details id="rides-panel">
+      <summary>Rides &amp; sync</summary>
+      <div id="rides-list"></div>
+      <div class="settings-row">
+        <input id="server-url" type="url" placeholder="Server URL (e.g. https://gps4b.example.org)" />
+        <button id="btn-save-server">Save</button>
+        <button id="btn-sync-now">Sync now</button>
+      </div>
+      <div class="hint">
+        Rides are stored in this browser and never leave your device unless a
+        server URL is set (or you export them). Set the URL of a GPS4B server
+        to sync automatically, or use Export to download rides as JSON/CSV.
+      </div>
+    </details>
+
+    <footer>
+      GPS4B v0.1 web · location is only recorded during an active ride ·
+      <span id="user-id-label"></span>
+    </footer>
+  </main>
+
+  <div id="nav-overlay" hidden>
+    <div id="nav-map"></div>
+    <div class="nav-search-bar">
+      <input id="nav-search" type="text" placeholder="Search destination" autocomplete="off" />
+      <button id="nav-clear-destination" hidden aria-label="Clear destination">×</button>
+      <button id="nav-close" aria-label="Close navigation">✕</button>
+    </div>
+    <div id="nav-results" hidden></div>
+    <div id="nav-route-summary" hidden></div>
+    <div class="nav-bottom-overlay">
+      <div id="nav-recording-row" class="nav-recording-row" hidden>
+        <div class="dot"></div><span>Recording</span>
+      </div>
+      <div id="nav-hazard-row" class="nav-hazard-row" hidden>
+        <button data-hazard-type="LANE_GAP">Lane Gap</button>
+        <button data-hazard-type="ROUGH_PAVEMENT">Rough Pavement</button>
+        <button data-hazard-type="BAD_INTERSECTION">Bad Intersection</button>
+      </div>
+      <div id="nav-condition-row" class="nav-condition-row" hidden>
+        <button id="nav-btn-safe" class="active">SAFE</button>
+        <button id="nav-btn-unsafe">UNSAFE</button>
+      </div>
+      <button id="nav-btn-start-nav" class="nav-big-btn" hidden>START NAVIGATION</button>
+      <button id="nav-btn-start" class="nav-big-btn">START RIDE</button>
+      <button id="nav-btn-stop" class="nav-big-btn" hidden>STOP RIDE</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  <script src="./map.js"></script>
+  <script src="./app.js"></script>
+  <script src="./nav.js"></script>
+</body>
+</html>
