@@ -1,9 +1,9 @@
 name: CI
 
-# Runs on every push and PR: server unit tests, then a full end-to-end test
-# (real Chromium + mocked GPS -> web app -> API -> Postgres/PostGIS). The web
-# app is redeployed to GitHub Pages on every push to main, but only after
-# both test jobs pass.
+# Runs on every push and PR: server unit tests, mobile typecheck + unit tests,
+# then a full end-to-end test (real Chromium + mocked GPS -> web app -> API ->
+# Postgres/PostGIS). The web app is redeployed to GitHub Pages on every push
+# to main, but only after all three test jobs pass.
 
 on:
   push:
@@ -30,6 +30,23 @@ jobs:
       - name: Run server unit tests
         run: npm test
         working-directory: server
+
+  mobile-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install mobile dependencies
+        run: npm ci
+        working-directory: mobile
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: mobile
+      - name: Run mobile unit tests
+        run: npm test
+        working-directory: mobile
 
   e2e:
     runs-on: ubuntu-latest
@@ -103,7 +120,7 @@ jobs:
         run: cat server/server.log || true
 
   deploy:
-    needs: [server-tests, e2e]
+    needs: [server-tests, mobile-tests, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:

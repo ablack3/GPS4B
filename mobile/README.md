@@ -25,6 +25,27 @@ production backend requires, and point `GET /config` on the GPS4B server at
 it (`GEOCODE_URL`, `GEOCODE_API_KEY`, `ROUTING_URL`, `MAP_STYLE_URL`
 environment variables) before submitting.
 
+## Guidance (in progress)
+
+Turn-by-turn Guidance sits behind one platform-agnostic interface,
+[`src/guidance.ts`](src/guidance.ts) — `start`/`stop`, a mute control, and a
+subscribable stream of `{ currentManeuver, nextManeuver, distanceRemaining,
+eta, offRoute, arrived }`. Nothing outside an implementation file references
+a navigation engine, so the guidance UI, the mute control and the
+Ride/Guidance rules are testable without a simulator, real GPS, or a native
+bridge.
+
+Today the only implementation is the scripted fake
+([`src/guidance-fake.ts`](src/guidance-fake.ts)), selected by
+[`src/guidance-provider.ts`](src/guidance-provider.ts) — the one place that
+picks an implementation. The Ferrostar-backed iOS, Android and web engines
+plug in there with no consumer changes (see `docs/adr/0002`).
+
+A Navigation Session ([`src/navigation-session.ts`](src/navigation-session.ts))
+pairs Guidance with Ride recording, and keeps the two independent:
+navigating never requires contributing data, recording never requires a
+Route, and ending Guidance leaves an active Ride recording.
+
 ## Installing GPS4B on your phone
 
 No app store needed — download the build from GitHub and install it
@@ -193,4 +214,8 @@ production release goes live (typically a few hours to a few days).
 npm install
 npm run ios      # or: npm run android / npm run web
 npm run typecheck
+npm test         # Jest unit tests (jest-expo + @testing-library/react-native)
 ```
+
+Tests run against the fake Guidance implementation — no simulator, device or
+network needed. CI runs `npm run typecheck` and `npm test` on every push.

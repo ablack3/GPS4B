@@ -10,7 +10,7 @@
 import { Camera, GeoJSONSource, Layer, Map as MapLibreMap, Marker, UserLocation } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -22,8 +22,11 @@ import {
   View,
 } from 'react-native';
 
+import { GuidanceBanner } from './src/GuidanceBanner';
 import { CONFIG, fetchRemoteConfig } from './src/config';
 import { createHazardReport, getActiveRide, getRidesToSync, resetInterruptedUploads } from './src/db';
+import { createGuidance } from './src/guidance-provider';
+import { endNavigationSession, startNavigationSession } from './src/navigation-session';
 import { changeCondition, startRide, stopRide } from './src/ride';
 import {
   getBikeRoute,
@@ -34,6 +37,8 @@ import {
   type SearchResult,
 } from './src/routing';
 import { syncPendingRides } from './src/sync';
+import { formatDistance, formatDuration } from './src/units';
+import { useGuidance } from './src/useGuidance';
 import type { Condition, HazardType, Ride } from './src/types';
 
 const HAZARD_BUTTONS: Array<{ type: HazardType; label: string }> = [
@@ -43,6 +48,13 @@ const HAZARD_BUTTONS: Array<{ type: HazardType; label: string }> = [
 ];
 
 const BOSTON: RoutePoint = { latitude: 42.3601, longitude: -71.0589 };
+
+/**
+ * One Guidance instance for the app's lifetime, so a mute survives a
+ * re-render and a reroute swaps the Route in place rather than starting a
+ * second session. Which implementation this is, App.tsx does not know.
+ */
+const guidance = createGuidance();
 
 export default function App() {
   const [ride, setRide] = useState<Ride | null>(null);
@@ -59,6 +71,9 @@ export default function App() {
   const [route, setRoute] = useState<Route | null>(null);
   const [recordThisRide, setRecordThisRide] = useState(true);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const guidanceState = useGuidance(guidance);
+  const sessionDeps = useMemo(() => ({ guidance, startRide }), []);
 
   const refreshStatus = useCallback(() => {
     setRide(getActiveRide());
@@ -129,9 +144,35 @@ export default function App() {
     }
   };
 
+  /**
+   * Start a Navigation Session. Guidance runs whether or not the rider
+   * contributes data — with the switch off this used to return early and do
+   * nothing at all, which read as a dead button.
+   */
   const onStartNavigation = async () => {
-    if (!recordThisRide) return;
-    await onStartRide();
+    if (!route) return;
+    setBusy(true);
+    try {
+      const result = await startNavigationSession(
+        route,
+        { recordRide: recordThisRide },
+        sessionDeps
+      );
+      if (!result.ok) {
+        console.warn('Location permission required to navigate.');
+        return;
+      }
+      refreshStatus();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onToggleMute = () => guidance.setMuted(!guidanceState.muted);
+
+  /** Ends Guidance only — an active Ride keeps recording. */
+  const onEndNavigation = async () => {
+    await endNavigationSession(sessionDeps);
   };
 
   const onClearDestination = () => {
@@ -158,6 +199,9 @@ export default function App() {
     if (!ride) return;
     setBusy(true);
     try {
+      // The rider is done: end Guidance too. (The converse does not hold —
+      // ending Guidance leaves the Ride recording.)
+      await endNavigationSession(sessionDeps);
       await stopRide(ride.id);
       onClearDestination();
       refreshStatus();
@@ -222,24 +266,33 @@ export default function App() {
         )}
       </MapLibreMap>
 
-      <View style={styles.searchBar}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search destination"
-          placeholderTextColor="#888"
-          value={query}
-          onChangeText={setQuery}
-          returnKeyType="search"
-        />
-        {searching && <ActivityIndicator style={styles.searchSpinner} />}
-        {destination && (
-          <Pressable accessibilityRole="button" onPress={onClearDestination} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>×</Text>
-          </Pressable>
-        )}
-      </View>
+      <GuidanceBanner
+        state={guidanceState}
+        onToggleMute={onToggleMute}
+        onEndNavigation={onEndNavigation}
+      />
 
-      {results.length > 0 && (
+      {/* The rider is following a Route, not searching — reclaim the top. */}
+      {!guidanceState.active && (
+        <View style={styles.searchBar}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search destination"
+            placeholderTextColor="#888"
+            value={query}
+            onChangeText={setQuery}
+            returnKeyType="search"
+          />
+          {searching && <ActivityIndicator style={styles.searchSpinner} />}
+          {destination && (
+            <Pressable accessibilityRole="button" onPress={onClearDestination} style={styles.clearButton}>
+              <Text style={styles.clearButtonText}>×</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {results.length > 0 && !guidanceState.active && (
         <View style={styles.resultsList}>
           {results.map((r) => (
             <Pressable
@@ -254,15 +307,19 @@ export default function App() {
         </View>
       )}
 
-      {route && !ride && (
+      {route && !ride && !guidanceState.active && (
         <View style={styles.routeSummary}>
-          <Text style={styles.routeSummaryText}>
-            {(route.distanceMeters / 1000).toFixed(1)} km ·{' '}
-            {Math.round(route.durationSeconds / 60)} min by bike
+          <Text style={styles.routeSummaryText} testID="route-summary">
+            {formatDistance(route.distanceMeters)} ·{' '}
+            {formatDuration(route.durationSeconds)} by bike
           </Text>
           <View style={styles.recordRow}>
             <Text style={styles.recordRowText}>Contribute this ride's data</Text>
-            <Switch value={recordThisRide} onValueChange={setRecordThisRide} />
+            <Switch
+              accessibilityLabel="Contribute this ride's data"
+              value={recordThisRide}
+              onValueChange={setRecordThisRide}
+            />
           </View>
           <Pressable
             accessibilityRole="button"
