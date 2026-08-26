@@ -58,18 +58,33 @@ const GPS4BNav = (() => {
     }
   }
 
-  async function getBikeRoute(from, to) {
+  /**
+   * Builds the Valhalla request body. Mirrors mobile/src/routing.ts: safety-
+   * weighted routing (ADR 0001) arrives as one added request field —
+   * `linear_cost_factors`, Valhalla's request-time per-edge cost multipliers
+   * — not as a change of routing engine. Nothing supplies costFactors until
+   * Segment Scores exist.
+   */
+  function buildRouteRequest(from, to, options = {}) {
+    const request = {
+      locations: [
+        { lat: from.latitude, lon: from.longitude },
+        { lat: to.latitude, lon: to.longitude },
+      ],
+      costing: 'bicycle',
+      units: 'kilometers',
+    };
+    if (options.costFactors && options.costFactors.length > 0) {
+      request.linear_cost_factors = options.costFactors;
+    }
+    return request;
+  }
+
+  async function getBikeRoute(from, to, options = {}) {
     const response = await fetch(CONFIG.routingUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Client-Id': CONFIG.routingClientId },
-      body: JSON.stringify({
-        locations: [
-          { lat: from.latitude, lon: from.longitude },
-          { lat: to.latitude, lon: to.longitude },
-        ],
-        costing: 'bicycle',
-        units: 'kilometers',
-      }),
+      body: JSON.stringify(buildRouteRequest(from, to, options)),
     });
     if (!response.ok) throw new Error(`Routing failed: ${response.status}`);
     const body = await response.json();

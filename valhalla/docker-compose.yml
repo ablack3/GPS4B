@@ -1,0 +1,57 @@
+# GPS4B's own Valhalla routing instance (ADR 0001).
+#
+# Runs on a small VM (Hetzner CPX11 class, 2 shared vCPU / 2GB RAM). Tiles are
+# NOT built here — building Massachusetts tiles would OOM this box. CI builds
+# them off-box (build-tiles.sh) and deploy-tiles.sh drops the tarball into
+# ./custom_files/valhalla_tiles.tar, which is why use_tiles_ignore_pbf is on.
+#
+#   cp .env.example .env   # set DOMAIN and ACME_EMAIL
+#   docker compose up -d
+
+services:
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    restart: unless-stopped
+    environment:
+      # Serve the tarball we shipped; never look at a .pbf, never rebuild.
+      use_tiles_ignore_pbf: "True"
+      build_tar: "False"
+      force_rebuild: "False"
+      build_elevation: "False"
+      build_admins: "False"
+      build_time_zones: "False"
+      serve_tiles: "True"
+      server_threads: "2"
+    volumes:
+      - ./custom_files:/custom_files
+    # Not published to the host: Caddy is the only way in, so the instance is
+    # never reachable over plaintext HTTP.
+    expose:
+      - "8002"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8002/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    mem_limit: 1400m
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - valhalla
+
+volumes:
+  caddy-data:
+  caddy-config:

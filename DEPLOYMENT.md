@@ -255,6 +255,29 @@ testers (up to 100) need no Apple review.
 
 ---
 
+## 5b. Routing backend (Valhalla)
+
+The app's routing default, `valhalla1.openstreetmap.de`, is a community dev
+server that forbids production load. Before launch, stand up GPS4B's own
+Valhalla instance and repoint clients at it.
+
+Full runbook: [`valhalla/README.md`](valhalla/README.md). The shape of it:
+
+- A small VM (Hetzner CPX11 class, 2GB) runs Valhalla behind Caddy for TLS.
+- Tiles are built **off-box** — a full Massachusetts rebuild would OOM the
+  serving VM — by the `Valhalla tiles` GitHub Actions workflow, monthly, and
+  shipped as one tarball by `valhalla/deploy-tiles.sh`.
+- Clients cut over with **one environment variable** on the API service:
+  `ROUTING_URL=https://routing.gps4b.org/route`. `GET /config` hands it to
+  mobile and web at launch; no app release, and reverting is the same
+  variable set back.
+
+`GET /config` also carries `GEOCODE_URL`, `GEOCODE_API_KEY`, and
+`MAP_STYLE_URL`. Unset or blank variables are omitted rather than sent as
+empty strings, so a partial configuration leaves client defaults intact.
+
+---
+
 ## 6. Deployment checklist
 
 - [ ] Postgres + PostGIS running; `schema.sql` applied
@@ -263,6 +286,9 @@ testers (up to 100) need no Apple review.
 - [ ] Smoke-test ride POSTs, retries idempotently, reads back
 - [ ] Database backups scheduled
 - [ ] `apiUrl` in `mobile/src/config.ts` set to the HTTPS URL
+- [ ] Valhalla instance up; `valhalla/smoke-test.sh <url>` passes
+- [ ] `ROUTING_URL` set on the API service; route preview drawn on the
+      map on both mobile and web against the new instance
 - [ ] `eas init` done; Android APK (and/or TestFlight build) produced
 - [ ] Installed on a real phone; background recording verified with the
       screen locked; ride visible in the central database

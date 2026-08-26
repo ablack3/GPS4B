@@ -22,6 +22,7 @@ import pg from 'pg';
 
 import { validateRidePayload } from './validate.js';
 import { validateHazardPayload } from './validate-hazard.js';
+import { buildClientConfig } from './config-route.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const DATABASE_URL =
@@ -75,12 +76,7 @@ app.use((req, res, next) => {
 // without a release — required by the OSM Nominatim usage policy, and the
 // mechanism for moving off public dev servers onto GPS4B's own once deployed.
 app.get('/config', (_req, res) => {
-  res.json({
-    geocodeUrl: process.env.GEOCODE_URL,
-    geocodeApiKey: process.env.GEOCODE_API_KEY,
-    routingUrl: process.env.ROUTING_URL,
-    mapStyleUrl: process.env.MAP_STYLE_URL,
-  });
+  res.json(buildClientConfig(process.env));
 });
 
 app.get('/health', async (_req, res) => {
