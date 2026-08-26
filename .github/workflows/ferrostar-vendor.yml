@@ -42,6 +42,11 @@ jobs:
         id: ndk
         with:
           ndk-version: r26d
+      # ubrn does not invoke cargo directly for Android: it shells out to
+      # `cargo ndk --target <abi>`, which maps each ABI onto a rustup target
+      # and supplies the NDK's linker.
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
       - name: Build and vendor the Android binding
         run: ./build-ferrostar.sh android "${{ inputs.ferrostar_ref }}"
         working-directory: mobile/vendor
