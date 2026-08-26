@@ -34,6 +34,10 @@ jobs:
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # The four ABIs in ferrostar's ubrn.config.yaml. ubrn shells out to
+          # cargo per target and does not install them itself.
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
       - uses: nttld/setup-ndk@v1
         id: ndk
         with:
@@ -58,6 +62,8 @@ jobs:
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - name: Build and vendor the iOS binding
         run: ./build-ferrostar.sh ios "${{ inputs.ferrostar_ref }}"
         working-directory: mobile/vendor

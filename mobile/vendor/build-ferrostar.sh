@@ -42,6 +42,12 @@ else
   git clone --depth 1 --branch "$REF" https://github.com/stadiamaps/ferrostar.git "$src"
 fi
 
+# Start from a tree with no build output. Upstream's own `ubrn:clean` cannot do
+# this job here: it runs under Yarn Berry's shell, which treats a glob matching
+# nothing as an error, so it fails on exactly the fresh checkout where there is
+# nothing to clean. git does it without caring.
+git -C "$src" clean -xfdq
+
 cd "$src/react-native"
 corepack enable
 yarn install --immutable
@@ -49,7 +55,6 @@ yarn install --immutable
 # Upstream's build scripts also run `expo prebuild` on their example app,
 # which we neither need nor want. These are the same steps minus that.
 uniffi=@stadiamaps/ferrostar-uniffi-react-native
-yarn workspace "$uniffi" ubrn:clean
 yarn workspace "$uniffi" "ubrn:$PLATFORM"
 yarn workspace "$uniffi" prepare
 yarn workspace "$uniffi" codegen
