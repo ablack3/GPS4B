@@ -1,0 +1,120 @@
+name: Valhalla tiles
+
+# Rebuilds and deploys the routing tiles for GPS4B's own Valhalla instance
+# (ADR 0001). Valhalla has no incremental update, so this is a full rebuild
+# from a fresh Geofabrik extract — monthly is the cadence, which is roughly
+# how fast Massachusetts bike infrastructure changes in OSM.
+#
+# Building happens here, on a GitHub-hosted runner, and never on the 2GB
+# serving VM. The build job runs on any trigger; the deploy job only runs when
+# the deployment secrets exist, so the workflow is useful (as a build-only
+# check) before the server is provisioned.
+
+on:
+  schedule:
+    # 05:00 UTC on the 1st of each month — overnight in Boston.
+    - cron: '0 5 1 * *'
+  workflow_dispatch:
+    inputs:
+      extract_url:
+        description: 'Geofabrik extract URL'
+        required: false
+        default: 'https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf'
+      deploy:
+        description: 'Deploy to the routing host after building'
+        type: boolean
+        default: true
+
+concurrency:
+  group: valhalla-tiles
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build tiles
+        run: ./build-tiles.sh "${{ inputs.extract_url || 'https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf' }}"
+        working-directory: valhalla
+
+      # Serve the freshly built tarball exactly as the production host does
+      # (same image, same environment as docker-compose.yml) and route a real
+      # trip through it. A tarball that builds but does not route must not
+      # reach the server.
+      - name: Verify the tiles route before shipping them
+        run: |
+          mkdir -p verify_files
+          cp artifacts/valhalla_tiles.tar verify_files/
+          docker run -d --name valhalla-verify \
+            -v "$PWD/verify_files:/custom_files" \
+            -e use_tiles_ignore_pbf=True \
+            -e build_tar=False \
+            -e force_rebuild=False \
+            -e build_elevation=False \
+            -e build_admins=False \
+            -e build_time_zones=False \
+            -e serve_tiles=True \
+            -p 8002:8002 \
+            ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+          for i in $(seq 1 60); do
+            curl -fs http://localhost:8002/status > /dev/null && break
+            sleep 5
+          done
+          ./smoke-test.sh http://localhost:8002
+        working-directory: valhalla
+
+      - name: Container log (always, for debugging)
+        if: always()
+        run: docker logs valhalla-verify || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: valhalla-tiles
+          path: valhalla/artifacts/
+          retention-days: 14
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Skipped, not failed, until the routing host exists and its secrets are
+    # set. See valhalla/README.md for what to create.
+    if: >-
+      github.event_name != 'workflow_dispatch' || inputs.deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for deployment secrets
+        id: check
+        env:
+          HOST: ${{ secrets.VALHALLA_HOST }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "VALHALLA_HOST not set — tiles built and uploaded as an artifact, not deployed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          name: valhalla-tiles
+          path: valhalla/artifacts
+
+      - name: Add deploy key
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VALHALLA_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Deploy tiles
+        if: steps.check.outputs.ready == 'true'
+        env:
+          VALHALLA_HOST: ${{ secrets.VALHALLA_HOST }}
+          VALHALLA_URL: ${{ secrets.VALHALLA_URL }}
+        run: ./deploy-tiles.sh
+        working-directory: valhalla

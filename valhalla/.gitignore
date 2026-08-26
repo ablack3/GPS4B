@@ -1,0 +1,8 @@
+# Tile builds and their inputs: hundreds of MB, rebuilt from Geofabrik, never
+# committed.
+build/
+artifacts/
+custom_files/*
+!custom_files/.gitkeep
+.env
+verify_files/

@@ -10,7 +10,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "org.gps4b.app",
       "infoPlist": {
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -35,16 +38,23 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "GPS4B records your location while you are recording a bicycle ride so your route can contribute to the bicycle map.",
-          "locationAlwaysAndWhenInUsePermission": "GPS4B records your location while you are recording a bicycle ride — including while your phone is locked — so your route can contribute to the bicycle map. Location is never collected when no ride is active.",
+          "locationAlwaysAndWhenInUsePermission": "GPS4B records your location while you are recording a bicycle ride \u2014 including while your phone is locked \u2014 so your route can contribute to the bicycle map. Location is never collected when no ride is active.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-sqlite",
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      "./plugins/withFerrostar"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dd1a443d-d9dd-4491-92a5-8a5156f3d1a7"
+      }
+    },
+    "newArchEnabled": true
   }
 }

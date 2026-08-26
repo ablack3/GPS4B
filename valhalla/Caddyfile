@@ -1,0 +1,58 @@
+# TLS terminator in front of Valhalla.
+#
+# HTTPS is not optional: the web app is served from GitHub Pages over HTTPS and
+# a plaintext routing URL would be blocked as mixed content, and iOS App
+# Transport Security blocks it on mobile. Caddy provisions and renews the
+# certificate from Let's Encrypt automatically.
+#
+# Only the two endpoints the clients use are exposed. Valhalla's other
+# endpoints (/locate, /trace_route, /isochrone, ...) stay unreachable until
+# something in GPS4B actually needs them — /trace_route in particular will be
+# wanted by the map-matching work, and should be opened deliberately then.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	@routing {
+		method POST
+		path /route
+	}
+	handle @routing {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy valhalla:8002
+	}
+
+	@status {
+		method GET
+		path /status
+	}
+	handle @status {
+		reverse_proxy valhalla:8002
+	}
+
+	# Browsers preflight the JSON POST from the web app's origin.
+	@preflight method OPTIONS
+	handle @preflight {
+		header Access-Control-Allow-Origin "*"
+		header Access-Control-Allow-Methods "POST, GET, OPTIONS"
+		header Access-Control-Allow-Headers "Content-Type, X-Client-Id"
+		respond 204
+	}
+
+	header Access-Control-Allow-Origin "*"
+
+	handle {
+		respond "GPS4B routing: POST /route" 404
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
